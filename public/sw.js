@@ -1,4 +1,4 @@
-const APP_CACHE = 'cuenta-conmigo-pos-app-v3'
+const APP_CACHE = 'cuenta-conmigo-pos-app-v4'
 const SYNC_TAG = 'sincronizar-ventas-pendientes'
 const APP_BASE = new URL('./', self.registration.scope)
 const APP_SHELL_URL = new URL('index.html', APP_BASE)
