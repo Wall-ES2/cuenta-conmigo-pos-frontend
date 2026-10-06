@@ -29,6 +29,8 @@ El workflow [github-pages.yml](./.github/workflows/github-pages.yml) ejecuta pru
 
 La aplicación usa la ruta base `/cuenta-conmigo-pos-frontend/`, necesaria para GitHub Pages en un repositorio de proyecto. El workflow también publica un `404.html` basado en `index.html` para permitir que React Router atienda rutas internas.
 
+La vista previa demostrativa está disponible públicamente en `/cuenta-conmigo-pos-frontend/preview`. Usa datos ficticios y sus operaciones solo viven en memoria; no crea cuentas reales ni modifica el backend.
+
 ### Configuración inicial
 
 1. En GitHub, abrir **Settings → Pages** y seleccionar **GitHub Actions** como fuente de publicación.

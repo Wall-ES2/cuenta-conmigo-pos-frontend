@@ -14,22 +14,20 @@ import UnauthorizedPage from '../pages/UnauthorizedPage'
 import { useAuthStore } from '../stores/useAuthStore'
 
 const router = createBrowserRouter([
-  ...(import.meta.env.DEV
-    ? [{
-        path: '/preview',
-        lazy: async () => {
-          const module = await import('../pages/PreviewPage.jsx')
-          return {
-            Component: module.default,
-            HydrateFallback: () => (
-              <main className="grid min-h-screen place-items-center bg-slate-100 text-slate-700">
-                Cargando vista previa...
-              </main>
-            )
-          }
-        }
-      }]
-    : []),
+  {
+    path: '/preview',
+    lazy: async () => {
+      const module = await import('../pages/PreviewPage.jsx')
+      return {
+        Component: module.default,
+        HydrateFallback: () => (
+          <main className="grid min-h-screen place-items-center bg-slate-100 text-slate-700">
+            Cargando vista previa...
+          </main>
+        )
+      }
+    }
+  },
   { path: '/login', element: <LoginPage /> },
   { path: '/no-autorizado', element: <UnauthorizedPage /> },
   {
