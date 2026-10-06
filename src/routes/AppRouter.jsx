@@ -65,7 +65,9 @@ const router = createBrowserRouter([
     element: <Navigate replace to="/inicio" />
   },
   { path: '*', element: <Navigate replace to="/inicio" /> }
-])
+], {
+  basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+})
 
 function AppRouter() {
   const inicializarSesion = useAuthStore((state) => state.inicializar)

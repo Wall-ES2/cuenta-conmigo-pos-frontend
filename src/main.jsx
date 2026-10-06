@@ -6,7 +6,9 @@ import './index.css'
 import { useVentasStore } from './modules/ventas/store/useVentasStore'
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('/sw.js').catch((error) => {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
+    scope: import.meta.env.BASE_URL
+  }).catch((error) => {
     useVentasStore.getState().informarErrorServiceWorker(error)
     console.error('No se pudo registrar el Service Worker de ventas.', error)
   })

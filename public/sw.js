@@ -1,5 +1,7 @@
 const APP_CACHE = 'cuenta-conmigo-pos-app-v2'
 const SYNC_TAG = 'sincronizar-ventas-pendientes'
+const APP_BASE = new URL('./', self.registration.scope)
+const APP_SHELL_URL = new URL('index.html', APP_BASE)
 
 self.addEventListener('install', (event) => {
   event.waitUntil(Promise.all([precacheAppShell(), self.skipWaiting()]))
@@ -49,19 +51,19 @@ async function notificarClientesParaSincronizar() {
 
 async function precacheAppShell() {
   const cache = await caches.open(APP_CACHE)
-  const response = await fetch('/index.html', { cache: 'reload' })
+  const response = await fetch(APP_SHELL_URL, { cache: 'reload' })
 
   if (!response.ok) {
     throw new Error(`No se pudo descargar el App Shell para caché (${response.status}).`)
   }
 
   const html = await response.clone().text()
-  await cache.put('/', response.clone())
-  await cache.put('/index.html', response.clone())
+  await cache.put(APP_BASE, response.clone())
+  await cache.put(APP_SHELL_URL, response.clone())
 
   const assets = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css|svg|png|jpg|jpeg|webp|woff2?)(?:\?[^"]*)?)"/gi)]
-    .map((match) => new URL(match[1], self.location.origin))
-    .filter((url) => url.origin === self.location.origin)
+    .map((match) => new URL(match[1], APP_BASE))
+    .filter((url) => url.origin === APP_BASE.origin && url.pathname.startsWith(APP_BASE.pathname))
 
   for (const asset of assets) {
     const assetResponse = await fetch(asset, { cache: 'reload' })
@@ -78,12 +80,15 @@ async function responderNavegacion(request) {
   try {
     const response = await fetch(request)
     if (response.ok) {
-      await cache.put('/', response.clone())
-      await cache.put('/index.html', response.clone())
+      await cache.put(APP_BASE, response.clone())
+      await cache.put(APP_SHELL_URL, response.clone())
+    } else if (response.status === 404) {
+      const cachedShell = await cache.match(APP_BASE) ?? await cache.match(APP_SHELL_URL)
+      if (cachedShell) return cachedShell
     }
     return response
   } catch {
-    const cachedShell = await cache.match('/') ?? await cache.match('/index.html')
+    const cachedShell = await cache.match(APP_BASE) ?? await cache.match(APP_SHELL_URL)
     if (cachedShell) return cachedShell
     return new Response('La aplicación no está disponible sin conexión inicial.', {
       status: 503,
