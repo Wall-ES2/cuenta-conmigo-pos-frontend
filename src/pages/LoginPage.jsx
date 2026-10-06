@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/useAuthStore'
 
 function LoginPage() {
@@ -78,6 +78,13 @@ function LoginPage() {
             {procesando ? 'Validando...' : 'Ingresar'}
           </button>
         </form>
+
+        <Link
+          className="mt-3 block w-full rounded-lg border border-emerald-800 px-4 py-3 text-center text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50"
+          to="/preview"
+        >
+          Ver demo
+        </Link>
       </section>
     </main>
   )
