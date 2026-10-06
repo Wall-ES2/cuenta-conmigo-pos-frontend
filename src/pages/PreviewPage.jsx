@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { categorias, formatearPrecio } from '../modules/ventas/data/productos.js'
 import CarritoVentas from '../modules/ventas/components/CarritoVentas.jsx'
 import ProductoCard from '../modules/ventas/components/ProductoCard.jsx'
@@ -31,6 +31,14 @@ const usuariosDemoIniciales = [
   { id: 'demo-admin', nombre: 'María González', email: 'maria@demo.local', rol: 'Administrador' },
   { id: 'demo-cajero', nombre: 'Juan Pérez', email: 'juan@demo.local', rol: 'Cajero' }
 ]
+
+const formularioProductoDemoVacio = {
+  nombre: '',
+  categoria: 'helados',
+  precio: '',
+  detalle: '',
+  imagenUrl: ''
+}
 
 const categoriaNombre = Object.fromEntries(categorias.map(({ id, nombre }) => [id, nombre]))
 
@@ -92,10 +100,8 @@ function PreviewPage() {
   const [metodoPago, setMetodoPago] = useState('Efectivo')
   const [mostrarCobro, setMostrarCobro] = useState(false)
   const [aviso, setAviso] = useState('')
-  const [productoNuevo, setProductoNuevo] = useState('')
   const [productos, setProductos] = useState(productosDemo)
   const [usuariosDemo, setUsuariosDemo] = useState(usuariosDemoIniciales)
-  const [productoAgregado, setProductoAgregado] = useState('')
   const [periodo, setPeriodo] = useState(7)
   const navegacionVisible = rolActivo === 'Administrador'
     ? navegacion
@@ -146,24 +152,6 @@ function PreviewPage() {
     setCarrito([])
     setMostrarCobro(false)
     setAviso('Venta demostrativa registrada. No se guardó en el sistema.')
-  }
-
-  function agregarProductoDemo(event) {
-    event.preventDefault()
-    const nombre = productoNuevo.trim()
-    if (!nombre) return
-
-    const nuevo = {
-      id: `demo-producto-${globalThis.crypto.randomUUID()}`,
-      nombre,
-      categoria: 'helados',
-      precio: 1500,
-      detalle: 'Producto de ejemplo',
-      imagenUrl: ''
-    }
-    setProductos((actuales) => [...actuales, nuevo])
-    setProductoNuevo('')
-    setProductoAgregado(nuevo.nombre)
   }
 
   function cambiarRolDemo(rol) {
@@ -338,14 +326,10 @@ function PreviewPage() {
           )}
           {seccion === 'administracion' && (
             <AdministracionDemo
-              agregarProducto={agregarProductoDemo}
-              productoAgregado={productoAgregado}
-              productoNuevo={productoNuevo}
               productos={productos}
+              setProductos={setProductos}
               usuarios={usuariosDemo}
               setUsuarios={setUsuariosDemo}
-              setProductoAgregado={setProductoAgregado}
-              setProductoNuevo={setProductoNuevo}
             />
           )}
         </div>
@@ -630,15 +614,16 @@ function InventarioDemo() {
 }
 
 function AdministracionDemo({
-  agregarProducto,
-  productoAgregado,
-  productoNuevo,
   productos,
+  setProductos,
   usuarios,
-  setUsuarios,
-  setProductoAgregado,
-  setProductoNuevo
+  setUsuarios
 }) {
+  const [modalProductoAbierto, setModalProductoAbierto] = useState(false)
+  const [productoEditando, setProductoEditando] = useState('')
+  const [formularioProducto, setFormularioProducto] = useState(formularioProductoDemoVacio)
+  const [errorProducto, setErrorProducto] = useState('')
+  const [mensajeProducto, setMensajeProducto] = useState('')
   const [nuevoUsuario, setNuevoUsuario] = useState({
     nombre: '',
     email: '',
@@ -647,6 +632,89 @@ function AdministracionDemo({
   })
   const [errorUsuario, setErrorUsuario] = useState('')
   const [usuarioCreado, setUsuarioCreado] = useState('')
+
+  useEffect(() => {
+    if (!modalProductoAbierto) return undefined
+
+    document.getElementById('demo-product-name')?.focus()
+    function cerrarConEscape(event) {
+      if (event.key !== 'Escape') return
+      setModalProductoAbierto(false)
+      setProductoEditando('')
+      setFormularioProducto(formularioProductoDemoVacio)
+      setErrorProducto('')
+    }
+
+    window.addEventListener('keydown', cerrarConEscape)
+    return () => window.removeEventListener('keydown', cerrarConEscape)
+  }, [modalProductoAbierto])
+
+  function editarProductoDemo(producto) {
+    setModalProductoAbierto(true)
+    setProductoEditando(producto.id)
+    setFormularioProducto({
+      nombre: producto.nombre,
+      categoria: producto.categoria,
+      precio: String(producto.precio),
+      detalle: producto.detalle ?? '',
+      imagenUrl: producto.imagenUrl ?? ''
+    })
+    setErrorProducto('')
+    setMensajeProducto('')
+  }
+
+  function cancelarEdicionProducto() {
+    setModalProductoAbierto(false)
+    setProductoEditando('')
+    setFormularioProducto(formularioProductoDemoVacio)
+    setErrorProducto('')
+  }
+
+  function guardarProductoDemo(event) {
+    event.preventDefault()
+    setErrorProducto('')
+    setMensajeProducto('')
+
+    const nombre = formularioProducto.nombre.trim()
+    const precio = Number(formularioProducto.precio)
+    const imagenUrl = formularioProducto.imagenUrl.trim()
+
+    if (!nombre || !Number.isFinite(precio) || precio <= 0) {
+      setErrorProducto('Ingresa un nombre y un precio mayor que cero.')
+      return
+    }
+
+    if (imagenUrl) {
+      try {
+        const url = new URL(imagenUrl)
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('URL no segura')
+      } catch {
+        setErrorProducto('La foto debe tener una URL HTTP o HTTPS válida.')
+        return
+      }
+    }
+
+    const producto = {
+      id: productoEditando || `demo-producto-${globalThis.crypto.randomUUID()}`,
+      nombre,
+      categoria: formularioProducto.categoria,
+      precio,
+      detalle: formularioProducto.detalle.trim(),
+      imagenUrl
+    }
+
+    if (productoEditando) {
+      setProductos((actuales) => actuales.map((actual) => (
+        actual.id === productoEditando ? producto : actual
+      )))
+      setMensajeProducto(`Se actualizaron los datos de «${nombre}» en esta demostración.`)
+    } else {
+      setProductos((actuales) => [...actuales, producto])
+      setMensajeProducto(`Se agregó «${nombre}» solo a esta demostración.`)
+    }
+
+    cancelarEdicionProducto()
+  }
 
   function crearUsuarioDemo(event) {
     event.preventDefault()
@@ -679,43 +747,163 @@ function AdministracionDemo({
     <section className="mx-auto max-w-6xl">
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">Administración</h1>
       <p className="mt-2 text-slate-600">Gestión de catálogo y cuentas de usuario de ejemplo.</p>
-      {productoAgregado && (
+      {mensajeProducto && (
         <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
-          Se agregó «{productoAgregado}» solo a esta demostración.
+          {mensajeProducto}
           <button
             className="ml-3 font-semibold underline"
-            onClick={() => setProductoAgregado('')}
+            onClick={() => setMensajeProducto('')}
             type="button"
           >
             Cerrar
           </button>
         </p>
       )}
-      <form className="mt-6 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={agregarProducto}>
-        <label className="min-w-52 flex-1 text-sm font-medium text-slate-700" htmlFor="demo-product-name">
-          Nombre del producto
+      <button
+        className="mt-6 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900"
+        onClick={() => {
+          setProductoEditando('')
+          setFormularioProducto(formularioProductoDemoVacio)
+          setErrorProducto('')
+          setMensajeProducto('')
+          setModalProductoAbierto(true)
+        }}
+        type="button"
+      >
+        Agregar producto
+      </button>
+      {modalProductoAbierto && (
+        <>
+          <div
+            aria-hidden="true"
+            className="product-edit-backdrop"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) cancelarEdicionProducto()
+            }}
+          />
+          <form
+            aria-labelledby="demo-product-form-title"
+            aria-modal="true"
+            className="product-edit-dialog grid gap-4 sm:grid-cols-2"
+            onSubmit={guardarProductoDemo}
+            role="dialog"
+          >
+        <h2 className="text-lg font-semibold text-slate-900 sm:col-span-2" id="demo-product-form-title">
+          {productoEditando ? 'Editar producto' : 'Agregar producto'}
+        </h2>
+        {errorProducto && (
+          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:col-span-2" role="alert">
+            {errorProducto}
+          </p>
+        )}
+        <label className="text-sm font-medium text-slate-700" htmlFor="demo-product-name">
+          Nombre
           <input
             className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
             id="demo-product-name"
-            onChange={(event) => setProductoNuevo(event.target.value)}
-            placeholder="Por ejemplo, Sundae"
-            value={productoNuevo}
+            maxLength={120}
+            onChange={(event) => setFormularioProducto({ ...formularioProducto, nombre: event.target.value })}
+            required
+            value={formularioProducto.nombre}
           />
         </label>
-        <button className="self-end rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900" type="submit">
-          Agregar en demo
-        </button>
-      </form>
+        <label className="text-sm font-medium text-slate-700" htmlFor="demo-product-category">
+          Categoría
+          <select
+            className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+            id="demo-product-category"
+            onChange={(event) => setFormularioProducto({ ...formularioProducto, categoria: event.target.value })}
+            value={formularioProducto.categoria}
+          >
+            {categorias.filter(({ id }) => id !== 'todos').map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700" htmlFor="demo-product-price">
+          Precio
+          <input
+            className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+            id="demo-product-price"
+            min="1"
+            onChange={(event) => setFormularioProducto({ ...formularioProducto, precio: event.target.value })}
+            required
+            step="1"
+            type="number"
+            value={formularioProducto.precio}
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-700 sm:col-span-2" htmlFor="demo-product-detail">
+          Descripción
+          <textarea
+            className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+            id="demo-product-detail"
+            maxLength={240}
+            onChange={(event) => setFormularioProducto({ ...formularioProducto, detalle: event.target.value })}
+            rows={3}
+            value={formularioProducto.detalle}
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-700 sm:col-span-2" htmlFor="demo-product-image">
+          Foto del producto (URL pública opcional)
+          <input
+            className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+            id="demo-product-image"
+            onChange={(event) => setFormularioProducto({ ...formularioProducto, imagenUrl: event.target.value })}
+            placeholder="https://ejemplo.com/imagen-del-producto.jpg"
+            type="url"
+            value={formularioProducto.imagenUrl}
+          />
+          <span className="mt-1 block text-xs font-normal text-slate-500">
+            La carga directa de archivos se agregará cuando exista el backend para almacenarlos.
+          </span>
+          {formularioProducto.imagenUrl && (
+            <img
+              alt={`Vista previa de ${formularioProducto.nombre || 'producto'}`}
+              className="mt-3 h-24 w-24 rounded-lg border border-slate-200 object-cover"
+              src={formularioProducto.imagenUrl}
+            />
+          )}
+        </label>
+        <div className="flex flex-wrap gap-3 sm:col-span-2">
+          <button className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900" type="submit">
+            {productoEditando ? 'Confirmar cambios' : 'Confirmar producto'}
+          </button>
+          <button
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={cancelarEdicionProducto}
+            type="button"
+          >
+            Cancelar
+          </button>
+        </div>
+          </form>
+        </>
+      )}
       <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Catálogo ({productos.length})</h2>
         <ul className="mt-3 divide-y divide-slate-100">
           {productos.map((producto) => (
-            <li className="flex items-center justify-between gap-3 py-3 text-sm" key={producto.id}>
-              <div>
-                <p className="font-medium text-slate-800">{producto.nombre}</p>
-                <p className="text-slate-500">{categoriaNombre[producto.categoria]} · {producto.detalle}</p>
+            <li className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm" key={producto.id}>
+              <div className="flex min-w-0 items-center gap-3">
+                {producto.imagenUrl ? (
+                  <img alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" src={producto.imagenUrl} />
+                ) : (
+                  <span aria-hidden="true" className="h-14 w-14 shrink-0 rounded-lg bg-slate-100" />
+                )}
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-800">{producto.nombre}</p>
+                  <p className="text-slate-500">{categoriaNombre[producto.categoria]} · {producto.detalle || 'Sin descripción'}</p>
+                  <p className="mt-1 font-semibold text-slate-900">{formatearPrecio(producto.precio)}</p>
+                </div>
               </div>
-              <span className="font-semibold text-slate-900">{formatearPrecio(producto.precio)}</span>
+              <button
+                className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => editarProductoDemo(producto)}
+                type="button"
+              >
+                Editar
+              </button>
             </li>
           ))}
         </ul>

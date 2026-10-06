@@ -21,7 +21,7 @@ npm run build
 
 La aplicación consume el backend REST usando `VITE_API_BASE_URL`. Para desarrollo, crear `.env.local` a partir de `.env.example` y establecer la URL base del backend. No guardar contraseñas, tokens ni otras credenciales en variables `VITE_*`: Vite las incluye en los archivos públicos del navegador.
 
-Los productos pueden incluir el campo opcional `imageUrl` en el contrato REST de `/products`. Debe ser una URL absoluta HTTP o HTTPS; para el catálogo publicado se recomienda HTTPS y un recurso accesible por los navegadores de las cajas. El frontend no sube ni almacena archivos de imagen.
+Desde Administración se pueden agregar y editar productos con nombre, categoría, precio, descripción y una foto opcional. La foto se referencia con el campo `imageUrl` del contrato REST de `/products`: debe ser una URL absoluta HTTP o HTTPS accesible por los navegadores de las cajas. El frontend todavía no sube archivos de imagen; para habilitar esa opción hace falta implementar un servicio de almacenamiento y un contrato de carga en el backend.
 
 ## Publicación en GitHub Pages
 

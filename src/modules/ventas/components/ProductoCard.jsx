@@ -15,7 +15,9 @@ function ProductoCard({ producto, onAgregar }) {
       onClick={() => onAgregar(producto)}
       type="button"
     >
-      <span aria-hidden="true" className="sales-product-image" />
+      <span aria-hidden="true" className="sales-product-image">
+        {producto.imagenUrl && <img alt="" src={producto.imagenUrl} />}
+      </span>
       <span className="sales-product-copy">
         <span className="sales-product-category">
           {nombresCategorias[producto.categoria] ?? producto.categoria}

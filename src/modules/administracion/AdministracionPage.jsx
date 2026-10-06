@@ -25,6 +25,7 @@ function AdministracionPage() {
   const actualizarProductoCatalogo = useVentasStore((state) => state.actualizarProductoCatalogo)
   const eliminarProductoCatalogo = useVentasStore((state) => state.eliminarProductoCatalogo)
   const usuarioActual = useAuthStore((state) => state.usuario)
+  const [modalProductoAbierto, setModalProductoAbierto] = useState(false)
   const [productoEditando, setProductoEditando] = useState('')
   const [formulario, setFormulario] = useState(formularioVacio)
   const [guardando, setGuardando] = useState(false)
@@ -35,6 +36,22 @@ function AdministracionPage() {
   const [formularioUsuario, setFormularioUsuario] = useState(formularioUsuarioVacio)
   const [errorUsuarios, setErrorUsuarios] = useState('')
   const [mensajeUsuarios, setMensajeUsuarios] = useState('')
+
+  useEffect(() => {
+    if (!modalProductoAbierto) return undefined
+
+    document.getElementById('producto-nombre')?.focus()
+    function cerrarConEscape(event) {
+      if (event.key !== 'Escape' || guardando) return
+      setModalProductoAbierto(false)
+      setProductoEditando('')
+      setFormulario(formularioVacio)
+      setError('')
+    }
+
+    window.addEventListener('keydown', cerrarConEscape)
+    return () => window.removeEventListener('keydown', cerrarConEscape)
+  }, [guardando, modalProductoAbierto])
 
   useEffect(() => {
     let activo = true
@@ -72,6 +89,7 @@ function AdministracionPage() {
   }
 
   function editarProducto(producto) {
+    setModalProductoAbierto(true)
     setProductoEditando(producto.id)
     setFormulario({
       nombre: producto.nombre,
@@ -84,6 +102,7 @@ function AdministracionPage() {
   }
 
   function cancelarEdicion() {
+    setModalProductoAbierto(false)
     setProductoEditando('')
     setFormulario(formularioVacio)
     setError('')
@@ -192,6 +211,18 @@ function AdministracionPage() {
           <p className="mt-2 text-slate-600">Gestiona el catálogo de productos disponible en ventas.</p>
         </div>
         <button
+          className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
+          onClick={() => {
+            setProductoEditando('')
+            setFormulario(formularioVacio)
+            setError('')
+            setModalProductoAbierto(true)
+          }}
+          type="button"
+        >
+          Agregar producto
+        </button>
+        <button
           className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           onClick={recargarCatalogo}
           type="button"
@@ -200,19 +231,36 @@ function AdministracionPage() {
         </button>
       </div>
 
-      {(error || catalogoError) && (
+      {((error && !modalProductoAbierto) || catalogoError) && (
         <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
           {error || catalogoError}
         </p>
       )}
 
-      <form
-        className="mt-6 grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2"
-        onSubmit={guardarProducto}
-      >
-        <h2 className="text-lg font-semibold text-slate-900 md:col-span-2">
+      {modalProductoAbierto && (
+        <>
+          <div
+            aria-hidden="true"
+            className="product-edit-backdrop"
+            onClick={(event) => {
+              if (event.target === event.currentTarget && !guardando) cancelarEdicion()
+            }}
+          />
+          <form
+            aria-labelledby="producto-form-title"
+            aria-modal="true"
+            className="product-edit-dialog grid gap-4 md:grid-cols-2"
+            onSubmit={guardarProducto}
+            role="dialog"
+          >
+        <h2 className="text-lg font-semibold text-slate-900 md:col-span-2" id="producto-form-title">
           {productoEditando ? 'Editar producto' : 'Agregar producto'}
         </h2>
+        {error && (
+          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 md:col-span-2" role="alert">
+            {error}
+          </p>
+        )}
 
         <label className="text-sm font-medium text-slate-700" htmlFor="producto-nombre">
           Nombre
@@ -254,19 +302,20 @@ function AdministracionPage() {
           />
         </label>
 
-        <label className="text-sm font-medium text-slate-700" htmlFor="producto-detalle">
-          Detalle
-          <input
+        <label className="text-sm font-medium text-slate-700 md:col-span-2" htmlFor="producto-detalle">
+          Descripción
+          <textarea
             className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
             id="producto-detalle"
             maxLength={240}
             onChange={(event) => setFormulario({ ...formulario, detalle: event.target.value })}
+            rows={3}
             value={formulario.detalle}
           />
         </label>
 
         <label className="text-sm font-medium text-slate-700 md:col-span-2" htmlFor="producto-imagen">
-          URL de imagen (opcional)
+          Foto del producto (URL pública opcional)
           <input
             className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
             id="producto-imagen"
@@ -276,8 +325,15 @@ function AdministracionPage() {
             value={formulario.imagenUrl}
           />
           <span className="mt-1 block text-xs font-normal text-slate-500">
-            Usa un enlace público HTTPS. Se guarda como referencia del producto.
+            Usa una URL pública HTTPS. La carga de archivos todavía no está disponible.
           </span>
+          {formulario.imagenUrl && (
+            <img
+              alt={`Vista previa de ${formulario.nombre || 'producto'}`}
+              className="mt-3 h-24 w-24 rounded-lg border border-slate-200 object-cover"
+              src={formulario.imagenUrl}
+            />
+          )}
         </label>
 
         <div className="flex flex-wrap gap-3 md:col-span-2">
@@ -286,19 +342,22 @@ function AdministracionPage() {
             disabled={guardando}
             type="submit"
           >
-            {guardando ? 'Guardando...' : productoEditando ? 'Guardar cambios' : 'Agregar producto'}
+            {guardando
+              ? 'Guardando...'
+              : productoEditando ? 'Confirmar cambios' : 'Confirmar producto'}
           </button>
-          {productoEditando && (
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              onClick={cancelarEdicion}
-              type="button"
-            >
-              Cancelar
-            </button>
-          )}
+          <button
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            onClick={cancelarEdicion}
+            disabled={guardando}
+            type="button"
+          >
+            Cancelar
+          </button>
         </div>
-      </form>
+          </form>
+        </>
+      )}
 
       <section aria-labelledby="catalogo-heading" className="mt-8">
         <h2 className="text-xl font-semibold text-slate-900" id="catalogo-heading">
@@ -314,15 +373,23 @@ function AdministracionPage() {
               <li className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" key={producto.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span aria-hidden="true" className="h-14 w-14 shrink-0 rounded-lg bg-slate-100" />
+                    {producto.imagenUrl ? (
+                      <img
+                        alt=""
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                        src={producto.imagenUrl}
+                      />
+                    ) : (
+                      <span aria-hidden="true" className="h-14 w-14 shrink-0 rounded-lg bg-slate-100" />
+                    )}
                     <div className="min-w-0">
-                    <h3 className="font-semibold text-slate-900">{producto.nombre}</h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {categoriasDisponibles.find(({ id }) => id === producto.categoria)?.nombre}
-                      {' · '}
-                      {formatearPrecio(producto.precio)}
-                    </p>
-                    {producto.detalle && <p className="mt-1 text-sm text-slate-500">{producto.detalle}</p>}
+                      <h3 className="font-semibold text-slate-900">{producto.nombre}</h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {categoriasDisponibles.find(({ id }) => id === producto.categoria)?.nombre}
+                        {' · '}
+                        {formatearPrecio(producto.precio)}
+                      </p>
+                      {producto.detalle && <p className="mt-1 text-sm text-slate-500">{producto.detalle}</p>}
                     </div>
                   </div>
                   <div className="flex gap-2">
