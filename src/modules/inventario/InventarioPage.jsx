@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { categorias, formatearPrecio } from "../ventas/data/productos.js";
 import { useVentasStore } from "../ventas/store/useVentasStore.js";
+import { actualizarProductoApi } from "../administracion/services/productosApi.js";
 import {
   listarMovimientosInventarioApi,
   normalizarMovimientoEntrada,
