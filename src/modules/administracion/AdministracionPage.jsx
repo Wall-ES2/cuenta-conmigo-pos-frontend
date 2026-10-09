@@ -239,7 +239,11 @@ function AdministracionPage() {
         });
       } else {
         const creado = await crearProductoApi(producto);
-        await agregarProductoCatalogo(creado);
+        await agregarProductoCatalogo({
+          ...creado,
+          controlaStock: producto.controlaStock,
+          stockMinimo: creado.stockMinimo ?? producto.stockMinimo,
+        });
       }
 
       cancelarEdicion();

@@ -146,6 +146,7 @@ describe("normalizarProductoApi", () => {
         detail: "",
         imageUrl: null,
         isFlavor: false,
+        tracksInventory: false,
         salesConfiguration: {
           type: "flavors",
           selectionCount: 2,

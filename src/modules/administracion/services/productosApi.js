@@ -60,7 +60,7 @@ export function normalizarProductoApi(producto) {
   }
 
   const esSabor = producto.isFlavor ?? false;
-  const controlaStock = producto.tracksInventory ?? (esSabor || !producto.salesConfiguration);
+  const controlaStock = producto.tracksInventory ?? esSabor;
   if (typeof controlaStock !== "boolean") {
     throw new Error("El backend devolvió una configuración de stock inválida.");
   }
@@ -109,7 +109,6 @@ export function normalizarProductoApi(producto) {
     nombre: producto.name,
     categoria: producto.category,
     precio: producto.price,
-    controlaStock,
     detalle: typeof producto.detail === "string" ? producto.detail : "",
     imagenUrl,
   };
@@ -117,6 +116,9 @@ export function normalizarProductoApi(producto) {
   if (producto.isFlavor !== undefined || salesConfiguration !== undefined || producto.tracksInventory !== undefined) {
     productoNormalizado.esSabor = esSabor;
     productoNormalizado.configuracionVenta = configuracionVenta;
+  }
+  if (producto.tracksInventory !== undefined) {
+    productoNormalizado.controlaStock = controlaStock;
   }
   if (stockDisponible !== undefined && stockDisponible !== null) {
     productoNormalizado.stockDisponible = stockDisponible;
@@ -156,7 +158,7 @@ export function serializarProductoApi(producto) {
     );
   }
   if (
-    (producto.controlaStock ?? (producto.esSabor || !configuracionVenta)) &&
+    (producto.controlaStock ?? producto.esSabor === true) &&
     (!Number.isInteger(producto.stockMinimo ?? 0) ||
       (producto.stockMinimo ?? 0) < 0)
   ) {
@@ -173,7 +175,7 @@ export function serializarProductoApi(producto) {
     detail: producto.detalle,
     imageUrl: normalizarImagenUrl(producto.imagenUrl) || null,
     isFlavor: producto.esSabor === true,
-    tracksInventory: producto.controlaStock ?? (producto.esSabor === true || !configuracionVenta),
+    tracksInventory: producto.controlaStock ?? producto.esSabor === true,
     salesConfiguration: configuracionVenta
       ? {
           type: "flavors",
@@ -181,6 +183,6 @@ export function serializarProductoApi(producto) {
           allowDuplicates: configuracionVenta.permitirRepetidos,
         }
       : null,
-    minimumPortions: (producto.controlaStock ?? (producto.esSabor === true || !configuracionVenta)) ? (producto.stockMinimo ?? 0) : null,
+    minimumPortions: (producto.controlaStock ?? producto.esSabor === true) ? (producto.stockMinimo ?? 0) : null,
   };
 }

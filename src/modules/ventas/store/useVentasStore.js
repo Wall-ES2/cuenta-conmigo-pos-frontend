@@ -53,7 +53,7 @@ function validarProducto(producto) {
   const configuracionVenta = normalizarConfiguracionVenta(
     producto.configuracionVenta,
   );
-  const controlaStock = producto.controlaStock ?? (esSabor || !configuracionVenta);
+  const controlaStock = producto.controlaStock ?? esSabor;
   if (typeof controlaStock !== "boolean") {
     throw new Error("La configuración de control de stock no es válida.");
   }

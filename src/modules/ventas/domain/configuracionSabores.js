@@ -172,7 +172,9 @@ export function validarDisponibilidadSaboresEnCarrito({
     }
     if (sabor.stockDisponible < cantidadNecesaria) {
       throw new Error(
-        `No hay suficiente stock de ${sabor.nombre}.`,
+        sabor.esSabor
+          ? `No hay suficientes porciones disponibles de ${sabor.nombre}.`
+          : `No hay suficiente stock de ${sabor.nombre}.`,
       );
     }
   }
