@@ -12,7 +12,7 @@ const nombresCategorias = {
 
 function ProductoCard({ producto, onAgregar }) {
   const sinStock =
-    producto.esSabor &&
+    (producto.controlaStock || producto.esSabor) &&
     (!Number.isInteger(producto.stockDisponible) ||
       producto.stockDisponible < 1);
 
@@ -44,9 +44,9 @@ function ProductoCard({ producto, onAgregar }) {
           {sinStock
             ? Number.isInteger(producto.stockDisponible)
               ? "Agotado"
-              : "Sin conteo"
+              : "Cargar stock"
             : producto.configuracionVenta
-              ? "Elegir sabores"
+              ? "Elegir bochas"
               : "Agregar"}{" "}
           <span aria-hidden="true">+</span>
         </span>

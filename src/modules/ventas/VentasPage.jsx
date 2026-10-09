@@ -12,6 +12,7 @@ function VentasPage() {
   const [busqueda, setBusqueda] = useState("");
   const [mostrarCobro, setMostrarCobro] = useState(false);
   const [productoConfigurando, setProductoConfigurando] = useState(null);
+  const [lineaEditando, setLineaEditando] = useState(null);
   const [metodoPago, setMetodoPago] = useState("Efectivo");
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
@@ -33,6 +34,7 @@ function VentasPage() {
   );
   const guardandoVenta = useVentasStore((state) => state.guardandoVenta);
   const agregarAlCarrito = useVentasStore((state) => state.agregarAlCarrito);
+  const editarLineaConfigurada = useVentasStore((state) => state.editarLineaConfigurada);
   const aumentarCantidad = useVentasStore((state) => state.aumentarCantidad);
   const disminuirCantidad = useVentasStore((state) => state.disminuirCantidad);
   const quitarDelCarrito = useVentasStore((state) => state.quitarDelCarrito);
@@ -46,6 +48,7 @@ function VentasPage() {
     const termino = busqueda.trim().toLocaleLowerCase("es");
 
     return productos.filter((producto) => {
+      if (producto.esSabor) return false;
       const coincideCategoria =
         categoriaActiva === "todos" || producto.categoria === categoriaActiva;
       const coincideBusqueda = producto.nombre
@@ -80,8 +83,10 @@ function VentasPage() {
   }
 
   function confirmarSabores(seleccion) {
-    agregarAlCarrito(productoConfigurando.id, seleccion);
+    if (lineaEditando) editarLineaConfigurada(lineaEditando.lineId, seleccion);
+    else agregarAlCarrito(productoConfigurando.id, seleccion);
     setProductoConfigurando(null);
+    setLineaEditando(null);
   }
 
   function quitarProducto(id) {
@@ -257,6 +262,7 @@ function VentasPage() {
           }}
           onDisminuir={disminuirCantidad}
           onQuitar={quitarProducto}
+          onEditar={(linea) => { setProductoConfigurando(linea); setLineaEditando(linea); }}
           onVaciar={vaciarCarrito}
           subtotal={subtotal}
         />
@@ -264,9 +270,10 @@ function VentasPage() {
 
       {productoConfigurando && (
         <ConfiguradorSaboresModal
-          onCancelar={() => setProductoConfigurando(null)}
+          onCancelar={() => { setProductoConfigurando(null); setLineaEditando(null); }}
           onConfirmar={confirmarSabores}
           producto={productoConfigurando}
+          lineaEditando={lineaEditando}
           carrito={carrito}
           saboresDisponibles={productos}
         />

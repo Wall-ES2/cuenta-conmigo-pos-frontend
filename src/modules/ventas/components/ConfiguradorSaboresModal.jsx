@@ -9,13 +9,18 @@ function ConfiguradorSaboresModal({
   producto,
   saboresDisponibles,
   carrito = [],
+  lineaEditando,
   onConfirmar,
   onCancelar,
 }) {
-  const cantidadSabores = producto.configuracionVenta.cantidadSabores;
+  const productoBase = saboresDisponibles.find((item) => item.id === producto.id) ?? producto;
+  const cantidadBase = productoBase.configuracionVenta.cantidadSabores;
+  const precioBase = productoBase.precio;
   const [seleccion, setSeleccion] = useState(() =>
-    Array(cantidadSabores).fill(""),
+    lineaEditando?.sabores?.map((sabor) => sabor.productoId) ??
+    Array(cantidadBase).fill(""),
   );
+  const [bochaActiva, setBochaActiva] = useState(0);
   const [error, setError] = useState("");
 
   const sabores = saboresDisponibles
@@ -37,6 +42,7 @@ function ConfiguradorSaboresModal({
         producto,
         saboresDisponibles: sabores,
         seleccion,
+        cantidadUnidades: lineaEditando?.cantidad ?? 1,
       });
       onConfirmar(idsSeleccionados);
       setError("");
@@ -63,13 +69,16 @@ function ConfiguradorSaboresModal({
       try {
         validarDisponibilidadSaboresEnCarrito({
           productos: saboresDisponibles,
-          carrito,
+          carrito: lineaEditando
+            ? carrito.filter((linea) => linea.lineId !== lineaEditando.lineId)
+            : carrito,
           seleccion: [
             ...seleccion.filter(
               (id, otroIndice) => otroIndice !== indice && id,
             ),
             sabor.id,
           ],
+          cantidadUnidades: lineaEditando?.cantidad ?? 1,
         });
       } catch {
         sinStock = true;
@@ -81,7 +90,7 @@ function ConfiguradorSaboresModal({
 
   return (
     <div
-      className="sales-modal-backdrop"
+      className="sales-modal-backdrop flavor-config-backdrop"
       onClick={(event) => {
         if (event.target === event.currentTarget) onCancelar();
       }}
@@ -89,18 +98,14 @@ function ConfiguradorSaboresModal({
       <section
         aria-labelledby="flavor-config-title"
         aria-modal="true"
-        className="sales-modal"
+        className="sales-modal flavor-config-modal"
         onKeyDown={(event) => {
           if (event.key === "Escape") onCancelar();
         }}
         role="dialog"
       >
-        <h2 id="flavor-config-title">Elegir sabores</h2>
-        <p>
-          {producto.nombre} · {cantidadSabores}{" "}
-          {cantidadSabores === 1 ? "bocha" : "bochas"} ·{" "}
-          {formatearPrecio(producto.precio)}
-        </p>
+        <h2 id="flavor-config-title">Elegir bochas y sabores</h2>
+        <p>{producto.nombre} · {seleccion.length} {seleccion.length === 1 ? "bocha" : "bochas"}. Los sabores descuentan stock; el precio es el del cucurucho.</p>
 
         {sabores.length === 0 ? (
           <p className="sales-form-error" role="alert">
@@ -120,39 +125,26 @@ function ConfiguradorSaboresModal({
                 No quedan porciones disponibles de los sabores configurados.
               </p>
             )}
-            {seleccion.map((idSeleccionado, indice) => (
-              <label
-                className="text-sm font-semibold text-slate-700"
-                htmlFor={`sabor-bocha-${indice}`}
-                key={indice}
-              >
-                Bocha {indice + 1}
-                <select
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
-                  id={`sabor-bocha-${indice}`}
-                  onChange={(event) => {
-                    setSeleccion((actual) =>
-                      actual.map((id, index) =>
-                        index === indice ? event.target.value : id,
-                      ),
-                    );
-                    setError("");
-                  }}
-                  required
-                  value={idSeleccionado}
-                >
-                  <option value="">Seleccionar sabor</option>
-                  {opcionesDisponibles(indice).map((sabor) => (
-                    <option key={sabor.id} value={sabor.id}>
-                      {sabor.nombre}
-                      {Number.isInteger(sabor.stockDisponible)
-                        ? ` · ${sabor.stockDisponible} porciones`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+            <div aria-label="Seleccionar bocha para editar" className="flavor-scoop-tabs">
+              {seleccion.map((id, indice) => (
+                <button aria-pressed={bochaActiva === indice} className="flavor-scoop-tab" key={indice} onClick={() => setBochaActiva(indice)} type="button">
+                  <span>Bocha {indice + 1}</span>
+                  <small>{sabores.find((sabor) => sabor.id === id)?.nombre ?? "Seleccionar sabor"}</small>
+                </button>
+              ))}
+            </div>
+            <fieldset className="flavor-picker">
+              <legend>Sabores disponibles para la bocha {bochaActiva + 1}</legend>
+              <div className="flavor-picker-grid">
+                {opcionesDisponibles(bochaActiva).map((sabor) => (
+                  <button aria-pressed={seleccion[bochaActiva] === sabor.id} className="flavor-choice" key={sabor.id} onClick={() => { setSeleccion((actual) => actual.map((id, index) => index === bochaActiva ? sabor.id : id)); setError(""); }} type="button">
+                    <strong>{sabor.nombre}</strong>
+                    <small>{Number.isInteger(sabor.stockDisponible) ? `${sabor.stockDisponible} porciones` : "Sin conteo"}</small>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <div className="sales-modal-total"><span>Precio del cucurucho</span><strong>{formatearPrecio(precioBase)}</strong></div>
             {error && (
               <p className="sales-form-error" role="alert">
                 {error}

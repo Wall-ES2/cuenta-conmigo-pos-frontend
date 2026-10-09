@@ -53,6 +53,10 @@ function validarProducto(producto) {
   const configuracionVenta = normalizarConfiguracionVenta(
     producto.configuracionVenta,
   );
+  const controlaStock = producto.controlaStock ?? (esSabor || !configuracionVenta);
+  if (typeof controlaStock !== "boolean") {
+    throw new Error("La configuración de control de stock no es válida.");
+  }
   if (esSabor && (producto.categoria !== "helados" || configuracionVenta)) {
     throw new Error(
       "Un sabor debe pertenecer a Helados y no puede ser configurable.",
@@ -68,7 +72,7 @@ function validarProducto(producto) {
     throw new Error("La disponibilidad del sabor no es válida.");
   }
   if (
-    producto.stockMinimo !== undefined &&
+    (controlaStock || esSabor) && producto.stockMinimo !== undefined &&
     producto.stockMinimo !== null &&
     (!Number.isInteger(producto.stockMinimo) || producto.stockMinimo < 0)
   ) {
@@ -95,9 +99,10 @@ function validarProducto(producto) {
 
   return {
     ...producto,
-    nombre,
+    nombre: (esSabor ? nombre.replace(/^helado(?:\s+de)?\s+/i, "") : nombre) || nombre,
     esSabor,
     configuracionVenta,
+    controlaStock,
     stockDisponible: stockDisponible ?? undefined,
     detalle: producto.detalle?.trim() ?? "",
     imagenUrl,
@@ -138,10 +143,11 @@ export const useVentasStore = create((set, get) => ({
         await ventasDatabase.open();
         await guardarConfiguracionSincronizacion(endpointSincronizacion);
 
-        const [productos, resumenCola] = await Promise.all([
+        const [productosSinValidar, resumenCola] = await Promise.all([
           ventasDatabase.productos.toArray(),
           resumirColaSincronizacion(),
         ]);
+        const productos = productosSinValidar.map(validarProducto);
 
         set({
           productos,
@@ -298,11 +304,13 @@ export const useVentasStore = create((set, get) => ({
       const sabor = productos.find((item) => item.id === saborId);
       return { productoId: sabor.id, nombre: sabor.nombre };
     });
+    const precioVenta = producto.precio;
     const lineId = crearClaveLineaVenta(id, saboresIds);
-    const porcionesNuevas =
-      producto.esSabor && !producto.configuracionVenta
-        ? [...saboresIds, producto.id]
-        : saboresIds;
+    const porcionesNuevas = producto.configuracionVenta
+      ? saboresIds
+      : producto.controlaStock
+        ? [producto.id]
+        : [];
     validarDisponibilidadSaboresEnCarrito({
       productos,
       carrito: get().carrito,
@@ -321,9 +329,25 @@ export const useVentasStore = create((set, get) => ({
                 ? { ...item, cantidad: item.cantidad + 1 }
                 : item,
             )
-          : [...state.carrito, { ...producto, cantidad: 1, lineId, sabores }],
+          : [...state.carrito, { ...producto, precio: precioVenta, cantidad: 1, lineId, sabores }],
       };
     });
+  },
+
+  editarLineaConfigurada: (lineId, seleccionSabores) => {
+    const { productos, carrito } = get();
+    const linea = carrito.find((item) => item.lineId === lineId);
+    if (!linea?.configuracionVenta) throw new Error("No se encontró el cucurucho para editar.");
+    const carritoRestante = carrito.filter((item) => item.lineId !== lineId);
+    const saboresIds = validarSeleccionSabores({ producto: linea, saboresDisponibles: productos, seleccion: seleccionSabores, cantidadUnidades: linea.cantidad });
+    validarDisponibilidadSaboresEnCarrito({ productos, carrito: carritoRestante, seleccion: saboresIds, cantidadUnidades: linea.cantidad });
+    const sabores = saboresIds.map((id) => { const sabor = productos.find((item) => item.id === id); return { productoId: id, nombre: sabor.nombre }; });
+    const nuevoLineId = crearClaveLineaVenta(linea.id, saboresIds);
+    const precio = productos.find((item) => item.id === linea.id).precio;
+    const actualizado = { ...linea, precio, sabores, lineId: nuevoLineId };
+    set({ carrito: carritoRestante.some((item) => item.lineId === nuevoLineId)
+      ? carritoRestante.map((item) => item.lineId === nuevoLineId ? { ...item, cantidad: item.cantidad + linea.cantidad } : item)
+      : [...carritoRestante, actualizado] });
   },
 
   aumentarCantidad: (lineId) => {
@@ -340,12 +364,16 @@ export const useVentasStore = create((set, get) => ({
         seleccion: saboresLinea,
       });
     }
-    validarDisponibilidadSaboresEnCarrito({
+    if (linea.controlaStock || linea.configuracionVenta) {
+      validarDisponibilidadSaboresEnCarrito({
       productos: get().productos,
       carrito: get().carrito,
       seleccion:
-        linea.esSabor && !linea.configuracionVenta ? [linea.id] : saboresLinea,
-    });
+          linea.controlaStock && !linea.configuracionVenta
+            ? [linea.id]
+            : saboresLinea,
+      });
+    }
 
     set((state) => ({
       carrito: state.carrito.map((item) =>
@@ -392,7 +420,7 @@ export const useVentasStore = create((set, get) => ({
     const productos = get().productos;
     const saboresAConsumir = [];
     for (const linea of carrito) {
-      if (linea.esSabor && !linea.configuracionVenta) {
+      if (linea.controlaStock && !linea.configuracionVenta) {
         for (let unidad = 0; unidad < linea.cantidad; unidad += 1) {
           saboresAConsumir.push(linea.id);
         }
@@ -451,21 +479,17 @@ export const useVentasStore = create((set, get) => ({
         async () => {
           for (const [saborId, cantidad] of consumoPorSabor) {
             const sabor = await ventasDatabase.productos.get(saborId);
-            if (!sabor?.esSabor) {
+            if (!(sabor?.controlaStock || sabor?.esSabor)) {
               throw new Error(
                 `El sabor "${saborId}" ya no está disponible en el catálogo.`,
               );
             }
-            if (Number.isInteger(sabor.stockDisponible)) {
-              if (sabor.stockDisponible < cantidad) {
-                throw new Error(
-                  `No hay suficientes porciones disponibles de ${sabor.nombre}.`,
-                );
-              }
-              await ventasDatabase.productos.update(saborId, {
-                stockDisponible: sabor.stockDisponible - cantidad,
-              });
+            if (!Number.isInteger(sabor.stockDisponible) || sabor.stockDisponible < cantidad) {
+              throw new Error(`No hay suficiente stock disponible de ${sabor.nombre}.`);
             }
+            await ventasDatabase.productos.update(saborId, {
+              stockDisponible: sabor.stockDisponible - cantidad,
+            });
           }
           await ventasDatabase.ventas.add(venta);
           await ventasDatabase.colaSincronizacion.add({

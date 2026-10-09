@@ -57,13 +57,13 @@ Los productos del catálogo usan `isFlavor: true` para indicar que son sabores d
 }
 ```
 
-La cantidad de selecciones debe ser un entero entre 1 y 6. La interfaz filtra sabores no disponibles, valida las selecciones, conserva distintas combinaciones como líneas distintas y muestra los sabores en el carrito. Los productos sabor también pueden venderse individualmente; en ese caso, cada unidad consume una porción de su propio stock. El precio aplicado es el precio base del producto configurable.
+La venta exige exactamente selectionCount sabores; por ejemplo, un cucurucho simple configurado con una bocha no permite agregar más. La interfaz filtra sabores no disponibles, muestra tarjetas con stock, conserva distintas combinaciones como líneas distintas y permite editar los sabores desde el carrito. El precio lo define el tipo de cucurucho; los sabores son insumos, no se venden por separado, y cada bocha consume una porción. Los productos normales (por ejemplo, facturas) también controlan stock en unidades. Inventario permite cargar existencias y actualizar el mínimo requerido de cualquier producto con control de stock.
 
 ### Contrato REST pendiente del backend
 
-`GET /products` debe incluir `isFlavor` y, para sabores, `availablePortions` como entero no negativo de la sucursal activa y `minimumPortions` como entero no negativo. Si no existe conteo inicial, omitir `availablePortions`; el frontend lo muestra como **Sin conteo inicial**, no como stock ilimitado confirmado. `POST /products` y `PUT /products/:id` reciben y devuelven `isFlavor`, `salesConfiguration` y `minimumPortions`; `availablePortions` se administra únicamente mediante movimientos.
+`GET /products` debe incluir `isFlavor`, `tracksInventory`, `availablePortions` como entero no negativo de la sucursal activa y `minimumPortions` como entero no negativo para cada producto inventariable. Si no existe conteo inicial, omitir `availablePortions`; el frontend lo muestra como **Sin conteo inicial**, no como stock ilimitado confirmado. `POST /products` y `PUT /products/:id` reciben y devuelven `isFlavor`, `tracksInventory`, `salesConfiguration` y `minimumPortions`; `availablePortions` se administra únicamente mediante movimientos.
 
-`POST /sales` recibe en cada línea `sabores: [{ "productoId": "...", "nombre": "..." }]`. Para una venta de un sabor individual, `productoId` identifica el sabor y `sabores` queda vacío. El backend debe volver a leer precios y configuraciones, calcular el consumo, validar y descontar existencias dentro de la misma transacción que guarda la venta. No debe confiar en los nombres, precios, saldos ni totales enviados por el navegador.
+`POST /sales` recibe en cada línea `sabores: [{ "productoId": "...", "nombre": "..." }]`. Para un cucurucho, el backend valida exactamente selectionCount sabores; solo el precio del cucurucho determina el total y los sabores seleccionados descuentan stock. Los productos normales descuentan una unidad por artículo vendido. El backend debe volver a leer precios y configuraciones, calcular el consumo, validar y descontar existencias dentro de la misma transacción que guarda la venta. No debe confiar en los nombres, precios, saldos ni totales enviados por el navegador.
 
 Las rutas para el inventario son:
 

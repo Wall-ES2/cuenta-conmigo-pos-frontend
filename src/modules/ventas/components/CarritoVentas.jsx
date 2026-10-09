@@ -6,6 +6,7 @@ function CarritoVentas({
   onAumentar,
   onDisminuir,
   onQuitar,
+  onEditar,
   onVaciar,
   onCobrar,
   notaVenta = "La venta se guarda primero en este dispositivo.",
@@ -55,6 +56,7 @@ function CarritoVentas({
                   <strong>{item.nombre}</strong>
                   {detalleSabores && <span>Sabores: {detalleSabores}</span>}
                   <span>{formatearPrecio(item.precio)} c/u</span>
+                  {item.configuracionVenta && <button className="sales-text-button" onClick={() => onEditar(item)} type="button">Editar cucurucho</button>}
                   <button
                     aria-label={`Quitar ${item.nombre}${detalleSabores ? ` con ${detalleSabores}` : ""} del carrito`}
                     className="sales-remove-button"

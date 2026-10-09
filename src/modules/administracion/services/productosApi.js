@@ -60,6 +60,10 @@ export function normalizarProductoApi(producto) {
   }
 
   const esSabor = producto.isFlavor ?? false;
+  const controlaStock = producto.tracksInventory ?? (esSabor || !producto.salesConfiguration);
+  if (typeof controlaStock !== "boolean") {
+    throw new Error("El backend devolvió una configuración de stock inválida.");
+  }
   const salesConfiguration = producto.salesConfiguration;
   const configuracionVenta =
     salesConfiguration == null
@@ -105,11 +109,12 @@ export function normalizarProductoApi(producto) {
     nombre: producto.name,
     categoria: producto.category,
     precio: producto.price,
+    controlaStock,
     detalle: typeof producto.detail === "string" ? producto.detail : "",
     imagenUrl,
   };
 
-  if (producto.isFlavor !== undefined || salesConfiguration !== undefined) {
+  if (producto.isFlavor !== undefined || salesConfiguration !== undefined || producto.tracksInventory !== undefined) {
     productoNormalizado.esSabor = esSabor;
     productoNormalizado.configuracionVenta = configuracionVenta;
   }
@@ -145,16 +150,13 @@ export function serializarProductoApi(producto) {
   const configuracionVenta = normalizarConfiguracionVenta(
     producto.configuracionVenta,
   );
-  if (
-    producto.esSabor &&
-    (producto.categoria !== "helados" || configuracionVenta)
-  ) {
+  if (producto.esSabor && (producto.categoria !== "helados" || configuracionVenta)) {
     throw new Error(
       "Un sabor debe pertenecer a Helados y no puede ser configurable.",
     );
   }
   if (
-    producto.esSabor &&
+    (producto.controlaStock ?? (producto.esSabor || !configuracionVenta)) &&
     (!Number.isInteger(producto.stockMinimo ?? 0) ||
       (producto.stockMinimo ?? 0) < 0)
   ) {
@@ -171,6 +173,7 @@ export function serializarProductoApi(producto) {
     detail: producto.detalle,
     imageUrl: normalizarImagenUrl(producto.imagenUrl) || null,
     isFlavor: producto.esSabor === true,
+    tracksInventory: producto.controlaStock ?? (producto.esSabor === true || !configuracionVenta),
     salesConfiguration: configuracionVenta
       ? {
           type: "flavors",
@@ -178,6 +181,6 @@ export function serializarProductoApi(producto) {
           allowDuplicates: configuracionVenta.permitirRepetidos,
         }
       : null,
-    minimumPortions: producto.esSabor ? (producto.stockMinimo ?? 0) : null,
+    minimumPortions: (producto.controlaStock ?? (producto.esSabor === true || !configuracionVenta)) ? (producto.stockMinimo ?? 0) : null,
   };
 }

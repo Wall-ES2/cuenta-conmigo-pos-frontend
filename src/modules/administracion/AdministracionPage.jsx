@@ -17,6 +17,7 @@ import { normalizarConfiguracionVenta } from "../ventas/domain/configuracionSabo
 const categoriasDisponibles = categorias.filter(({ id }) => id !== "todos");
 const formularioVacio = {
   nombre: "",
+  tipoCucurucho: false,
   categoria: "helados",
   precio: "",
   detalle: "",
@@ -125,8 +126,11 @@ function AdministracionPage() {
     setModalProductoAbierto(true);
     setProductoEditando(producto.id);
     setFormulario({
-      nombre: producto.nombre,
-      categoria: producto.categoria,
+      nombre: producto.configuracionVenta
+        ? producto.nombre.replace(/^Cucurucho\s*/i, "")
+        : producto.nombre,
+      tipoCucurucho: Boolean(producto.configuracionVenta),
+      categoria: producto.configuracionVenta || producto.esSabor ? "helados" : producto.categoria,
       precio: String(producto.precio),
       detalle: producto.detalle ?? "",
       imagenUrl: producto.imagenUrl ?? "",
@@ -154,7 +158,7 @@ function AdministracionPage() {
 
     let configuracionVenta;
     try {
-      configuracionVenta = formulario.configurarSabores
+      configuracionVenta = (formulario.tipoCucurucho || formulario.configurarSabores)
         ? normalizarConfiguracionVenta({
             tipo: "sabores",
             cantidadSabores: Number(formulario.cantidadSabores),
@@ -176,7 +180,7 @@ function AdministracionPage() {
         );
       }
       if (
-        formulario.esSabor &&
+        (formulario.esSabor || (!formulario.tipoCucurucho && !formulario.configurarSabores)) &&
         (!Number.isInteger(Number(formulario.stockMinimo)) ||
           Number(formulario.stockMinimo) < 0)
       ) {
@@ -207,14 +211,19 @@ function AdministracionPage() {
 
     const producto = {
       id: productoEditando || globalThis.crypto.randomUUID(),
-      nombre: formulario.nombre.trim(),
-      categoria: formulario.categoria,
-      precio: Number(formulario.precio),
+      nombre: formulario.tipoCucurucho
+        ? `Cucurucho ${formulario.nombre.trim()}`
+        : formulario.nombre.trim(),
+      categoria: formulario.tipoCucurucho || formulario.esSabor ? "helados" : formulario.categoria,
+      precio: formulario.esSabor
+        ? Number(formulario.precio) || 1
+        : Number(formulario.precio),
       detalle: formulario.detalle.trim(),
       imagenUrl: formulario.imagenUrl.trim(),
-      esSabor: formulario.esSabor,
+      esSabor: formulario.tipoCucurucho ? false : formulario.esSabor,
+      controlaStock: !configuracionVenta || formulario.esSabor,
       configuracionVenta,
-      stockMinimo: formulario.esSabor
+      stockMinimo: (!configuracionVenta || formulario.esSabor)
         ? Number(formulario.stockMinimo)
         : undefined,
     };
@@ -222,7 +231,12 @@ function AdministracionPage() {
     try {
       if (productoEditando) {
         const actualizado = await actualizarProductoApi(producto);
-        await actualizarProductoCatalogo(productoEditando, actualizado);
+        const productoActual = productos.find((item) => item.id === productoEditando);
+        await actualizarProductoCatalogo(productoEditando, {
+          ...productoActual,
+          ...producto,
+          ...actualizado,
+        });
       } else {
         const creado = await crearProductoApi(producto);
         await agregarProductoCatalogo(creado);
@@ -328,18 +342,11 @@ function AdministracionPage() {
             Gestiona el catálogo de productos disponible en ventas.
           </p>
         </div>
-        <button
-          className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
-          onClick={() => {
-            setProductoEditando("");
-            setFormulario(formularioVacio);
-            setError("");
-            setModalProductoAbierto(true);
-          }}
-          type="button"
-        >
-          Agregar producto
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900" onClick={() => { setProductoEditando(""); setFormulario({ ...formularioVacio, esSabor: true, precio: "1" }); setError(""); setModalProductoAbierto(true); }} type="button">Agregar sabor</button>
+          <button className="rounded-lg border border-emerald-800 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50" onClick={() => { setProductoEditando(""); setFormulario({ ...formularioVacio, tipoCucurucho: true, configurarSabores: true, cantidadSabores: "1" }); setError(""); setModalProductoAbierto(true); }} type="button">Agregar tipo de cucurucho</button>
+          <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setProductoEditando(""); setFormulario(formularioVacio); setError(""); setModalProductoAbierto(true); }} type="button">Agregar otro producto</button>
+        </div>
         <button
           className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           onClick={recargarCatalogo}
@@ -379,7 +386,7 @@ function AdministracionPage() {
               className="text-lg font-semibold text-slate-900 md:col-span-2"
               id="producto-form-title"
             >
-              {productoEditando ? "Editar producto" : "Agregar producto"}
+              {productoEditando ? "Editar producto" : formulario.tipoCucurucho ? "Agregar tipo de cucurucho" : formulario.esSabor ? "Agregar sabor" : "Agregar producto"}
             </h2>
             {error && (
               <p
@@ -394,11 +401,12 @@ function AdministracionPage() {
               className="text-sm font-medium text-slate-700"
               htmlFor="producto-nombre"
             >
-              Nombre
+              {formulario.tipoCucurucho ? "Diferenciación" : formulario.esSabor ? "Nombre del sabor" : "Nombre"}
               <input
                 className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
                 id="producto-nombre"
                 maxLength={120}
+                placeholder={formulario.tipoCucurucho ? "Simple, bañado en chocolate…" : formulario.esSabor ? "Vainilla, chocolate…" : ""}
                 onChange={(event) =>
                   setFormulario({ ...formulario, nombre: event.target.value })
                 }
@@ -407,7 +415,7 @@ function AdministracionPage() {
               />
             </label>
 
-            <label
+            {!formulario.tipoCucurucho && !formulario.esSabor && <label
               className="text-sm font-medium text-slate-700"
               htmlFor="producto-categoria"
             >
@@ -421,6 +429,7 @@ function AdministracionPage() {
                     ...actual,
                     categoria,
                     esSabor: categoria === "helados" && actual.esSabor,
+                    tipoCucurucho: categoria === "helados" && actual.tipoCucurucho,
                     configurarSabores:
                       categoria === "helados" && actual.configurarSabores,
                   }));
@@ -433,11 +442,11 @@ function AdministracionPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
 
             {formulario.categoria === "helados" && (
               <div className="grid gap-3 rounded-lg border border-slate-200 p-4 md:col-span-2">
-                <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
+                {!formulario.tipoCucurucho && <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
                   <input
                     checked={formulario.esSabor}
                     className="mt-0.5 accent-emerald-800"
@@ -453,13 +462,13 @@ function AdministracionPage() {
                     type="checkbox"
                   />
                   Este producto estará disponible como sabor seleccionable
-                </label>
-                {formulario.esSabor && (
+                </label>}
+                {(formulario.esSabor || (!formulario.tipoCucurucho && !formulario.configurarSabores)) && (
                   <label
                     className="text-sm font-medium text-slate-700"
                     htmlFor="producto-stock-minimo"
                   >
-                    Alertar cuando queden estas porciones o menos
+                    {formulario.esSabor ? "Alertar cuando queden estas porciones o menos" : "Stock mínimo requerido (unidades)"}
                     <input
                       className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal sm:max-w-48"
                       id="producto-stock-minimo"
@@ -477,7 +486,7 @@ function AdministracionPage() {
                     />
                   </label>
                 )}
-                <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
+                {!formulario.tipoCucurucho && <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
                   <input
                     checked={formulario.configurarSabores}
                     className="mt-0.5 accent-emerald-800"
@@ -491,8 +500,8 @@ function AdministracionPage() {
                     type="checkbox"
                   />
                   Este producto requiere elegir sabores al vender
-                </label>
-                {formulario.configurarSabores && (
+                </label>}
+                {(formulario.tipoCucurucho || formulario.configurarSabores) && (
                   <div className="grid gap-3 border-t border-slate-200 pt-3 sm:grid-cols-2">
                     <label
                       className="text-sm font-medium text-slate-700"
@@ -530,19 +539,19 @@ function AdministracionPage() {
                       Permitir repetir un sabor
                     </label>
                     <p className="text-xs font-normal text-slate-500 sm:col-span-2">
-                      El precio de este producto es el precio base. Cada sabor
-                      seleccionado se envía como una opción distinta de venta.
+                      El precio lo define el tipo de cucurucho y no cambia con
+                      el sabor. Cada bocha seleccionada descuenta stock.
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            <label
+            {!formulario.esSabor && <label
               className="text-sm font-medium text-slate-700"
               htmlFor="producto-precio"
             >
-              Precio
+              {formulario.tipoCucurucho || formulario.configurarSabores ? "Precio del cucurucho" : "Precio"}
               <input
                 className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
                 id="producto-precio"
@@ -555,7 +564,7 @@ function AdministracionPage() {
                 type="number"
                 value={formulario.precio}
               />
-            </label>
+            </label>}
 
             <label
               className="text-sm font-medium text-slate-700 md:col-span-2"
@@ -675,7 +684,7 @@ function AdministracionPage() {
                             ? "Cafetería"
                             : producto.categoria)}
                         {" · "}
-                        {formatearPrecio(producto.precio)}
+                        {producto.esSabor ? "Sabor (insumo)" : formatearPrecio(producto.precio)}
                       </p>
                       {producto.detalle && (
                         <p className="mt-1 text-sm text-slate-500">

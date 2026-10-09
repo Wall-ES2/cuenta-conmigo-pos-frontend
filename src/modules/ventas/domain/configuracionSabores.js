@@ -12,12 +12,12 @@ export function calcularConsumoSabores(items, productos) {
 
   for (const item of items) {
     const seleccion = item.sabores?.map((sabor) => sabor.productoId) ?? [];
-    const saboresConsumidos =
-      seleccion.length > 0
-        ? seleccion
-        : productosPorId.get(item.productoId)?.esSabor
-          ? [item.productoId]
-          : [];
+    const producto = productosPorId.get(item.productoId);
+    const saboresConsumidos = seleccion.length > 0
+      ? seleccion
+      : producto?.controlaStock || producto?.esSabor
+        ? [item.productoId]
+        : [];
 
     for (const saborId of saboresConsumidos) {
       consumo.set(saborId, (consumo.get(saborId) ?? 0) + item.cantidad);
@@ -137,7 +137,7 @@ export function validarDisponibilidadSaboresEnCarrito({
   const porcionesReservadas = new Map();
 
   for (const linea of carrito) {
-    if (linea.esSabor && !linea.configuracionVenta) {
+    if ((linea.controlaStock || linea.esSabor) && !linea.configuracionVenta) {
       porcionesReservadas.set(
         linea.id,
         (porcionesReservadas.get(linea.id) ?? 0) + linea.cantidad,
@@ -160,19 +160,19 @@ export function validarDisponibilidadSaboresEnCarrito({
 
   for (const [id, cantidadNecesaria] of porcionesReservadas) {
     const sabor = productosPorId.get(id);
-    if (!sabor?.esSabor) {
+    if (!(sabor?.controlaStock || sabor?.esSabor)) {
       throw new Error(
         "Uno de los sabores seleccionados ya no está disponible.",
       );
     }
     if (!Number.isInteger(sabor.stockDisponible)) {
       throw new Error(
-        `El sabor ${sabor.nombre} no tiene un conteo inicial de stock.`,
+        `${sabor.nombre} no tiene un conteo inicial de stock.`,
       );
     }
     if (sabor.stockDisponible < cantidadNecesaria) {
       throw new Error(
-        `No hay suficientes porciones disponibles de ${sabor.nombre}.`,
+        `No hay suficiente stock de ${sabor.nombre}.`,
       );
     }
   }

@@ -28,31 +28,35 @@ const navegacion = [
 
 const productosDemo = [
   {
-    id: "demo-helado-vainilla",
-    nombre: "Helado de vainilla",
+    id: "demo-sabor-vainilla",
+    nombre: "Vainilla",
     categoria: "helados",
-    precio: 1800,
-    detalle: "Vaso mediano",
+    precio: 1,
+    detalle: "Sabor de helado",
     imagenUrl: "",
     esSabor: true,
+    controlaStock: true,
     stockDisponible: 8,
+    stockMinimo: 3,
   },
   {
-    id: "demo-helado-chocolate",
-    nombre: "Helado de chocolate",
+    id: "demo-sabor-chocolate",
+    nombre: "Chocolate",
     categoria: "helados",
-    precio: 1900,
-    detalle: "Vaso mediano",
+    precio: 1,
+    detalle: "Sabor de helado",
     imagenUrl: "",
     esSabor: true,
+    controlaStock: true,
     stockDisponible: 6,
+    stockMinimo: 3,
   },
   {
     id: "demo-cucurucho",
     nombre: "Cucurucho doble",
     categoria: "helados",
     precio: 2500,
-    detalle: "Dos sabores",
+    detalle: "Cucurucho · doble",
     imagenUrl: "",
     configuracionVenta: {
       tipo: "sabores",
@@ -61,10 +65,24 @@ const productosDemo = [
     },
   },
   {
+    id: "demo-facturas",
+    nombre: "Facturas",
+    categoria: "panaderia",
+    precio: 750,
+    detalle: "Unidad",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 18,
+    stockMinimo: 5,
+  },
+  {
     id: "demo-cafe",
     nombre: "Café latte",
     categoria: "cafeteria",
     precio: 2200,
+    controlaStock: true,
+    stockDisponible: 12,
+    stockMinimo: 3,
     detalle: "Tamaño regular",
     imagenUrl: "",
   },
@@ -73,6 +91,9 @@ const productosDemo = [
     nombre: "Capuccino",
     categoria: "cafeteria",
     precio: 2400,
+    controlaStock: true,
+    stockDisponible: 10,
+    stockMinimo: 3,
     detalle: "Tamaño regular",
     imagenUrl: "",
   },
@@ -81,6 +102,9 @@ const productosDemo = [
     nombre: "Croissant",
     categoria: "panaderia",
     precio: 1600,
+    controlaStock: true,
+    stockDisponible: 14,
+    stockMinimo: 4,
     detalle: "Recién horneado",
     imagenUrl: "",
   },
@@ -89,6 +113,9 @@ const productosDemo = [
     nombre: "Medialuna",
     categoria: "panaderia",
     precio: 900,
+    controlaStock: true,
+    stockDisponible: 20,
+    stockMinimo: 5,
     detalle: "Unidad",
     imagenUrl: "",
   },
@@ -97,6 +124,9 @@ const productosDemo = [
     nombre: "Agua mineral",
     categoria: "otros",
     precio: 1200,
+    controlaStock: true,
+    stockDisponible: 9,
+    stockMinimo: 3,
     detalle: "Botella 500 ml",
     imagenUrl: "",
   },
@@ -123,6 +153,11 @@ const formularioProductoDemoVacio = {
   precio: "",
   detalle: "",
   imagenUrl: "",
+  esSabor: false,
+  tipoCucurucho: false,
+  configurarSabores: false,
+  cantidadSabores: "1",
+  stockMinimo: "3",
 };
 
 const categoriaNombre = Object.fromEntries(
@@ -159,7 +194,7 @@ function crearVentasDemo() {
       "Efectivo",
       [
         {
-          nombre: "Helado de vainilla",
+          nombre: "Vainilla",
           categoria: "helados",
           cantidad: 2,
           totalLinea: 3600,
@@ -191,7 +226,7 @@ function crearVentasDemo() {
     ]),
     ventaDemo("demo-venta-5", fecha(4, 16), "Tarjeta", [
       {
-        nombre: "Helado de chocolate",
+        nombre: "Chocolate",
         categoria: "helados",
         cantidad: 2,
         totalLinea: 3800,
@@ -243,6 +278,7 @@ function PreviewPage() {
   const [metodoPago, setMetodoPago] = useState("Efectivo");
   const [mostrarCobro, setMostrarCobro] = useState(false);
   const [productoConfigurando, setProductoConfigurando] = useState(null);
+  const [lineaEditando, setLineaEditando] = useState(null);
   const [aviso, setAviso] = useState("");
   const [productos, setProductos] = useState(productosDemo);
   const [usuariosDemo, setUsuariosDemo] = useState(usuariosDemoIniciales);
@@ -262,6 +298,7 @@ function PreviewPage() {
     const termino = busqueda.trim().toLocaleLowerCase("es");
     return productos.filter(
       (producto) =>
+        !producto.esSabor &&
         (categoriaActiva === "todos" ||
           producto.categoria === categoriaActiva) &&
         producto.nombre.toLocaleLowerCase("es").includes(termino),
@@ -280,9 +317,7 @@ function PreviewPage() {
       seleccion: seleccionSabores,
     });
     const porcionesNuevas =
-      producto.esSabor && !producto.configuracionVenta
-        ? [...saboresIds, producto.id]
-        : saboresIds;
+      producto.configuracionVenta ? saboresIds : producto.controlaStock ? [producto.id] : [];
     validarDisponibilidadSaboresEnCarrito({
       productos,
       carrito,
@@ -293,6 +328,7 @@ function PreviewPage() {
       const sabor = productos.find((item) => item.id === saborId);
       return { productoId: sabor.id, nombre: sabor.nombre };
     });
+    const precioVenta = producto.precio;
 
     setCarrito((actual) => {
       const existe = actual.find((item) => item.lineId === lineId);
@@ -302,7 +338,7 @@ function PreviewPage() {
               ? { ...item, cantidad: item.cantidad + 1 }
               : item,
           )
-        : [...actual, { ...producto, cantidad: 1, lineId, sabores }];
+        : [...actual, { ...producto, precio: precioVenta, cantidad: 1, lineId, sabores }];
     });
   }
 
@@ -325,8 +361,22 @@ function PreviewPage() {
   }
 
   function confirmarSabores(seleccion) {
-    agregarAlCarrito(productoConfigurando, seleccion);
+    if (lineaEditando) {
+      const linea = lineaEditando;
+      const restante = carrito.filter((item) => item.lineId !== linea.lineId);
+      validarDisponibilidadSaboresEnCarrito({ productos, carrito: restante, seleccion, cantidadUnidades: linea.cantidad });
+      const sabores = seleccion.map((id) => { const sabor = productos.find((item) => item.id === id); return { productoId: id, nombre: sabor.nombre }; });
+      const lineId = crearClaveLineaVenta(linea.id, seleccion);
+      const precio = productos.find((item) => item.id === linea.id).precio;
+      const existe = restante.some((item) => item.lineId === lineId);
+      setCarrito(existe
+        ? restante.map((item) => item.lineId === lineId ? { ...item, cantidad: item.cantidad + linea.cantidad } : item)
+        : [...restante, { ...linea, lineId, precio, sabores }]);
+    } else {
+      agregarAlCarrito(productoConfigurando, seleccion);
+    }
     setProductoConfigurando(null);
+    setLineaEditando(null);
   }
 
   function actualizarCantidad(lineId, incremento) {
@@ -335,7 +385,7 @@ function PreviewPage() {
     );
     if (!linea) return;
 
-    if (incremento > 0 && (linea.esSabor || linea.sabores?.length)) {
+    if (incremento > 0 && (linea.controlaStock || linea.sabores?.length)) {
       try {
         const saboresLinea =
           linea.sabores?.map((sabor) => sabor.productoId) ?? [];
@@ -350,7 +400,7 @@ function PreviewPage() {
           productos,
           carrito,
           seleccion:
-            linea.esSabor && !linea.configuracionVenta
+            linea.controlaStock && !linea.configuracionVenta
               ? [linea.id]
               : saboresLinea,
         });
@@ -379,7 +429,7 @@ function PreviewPage() {
     try {
       const saboresAConsumir = [];
       for (const item of carrito) {
-        if (item.esSabor && !item.configuracionVenta) {
+        if (item.controlaStock && !item.configuracionVenta) {
           for (let unidad = 0; unidad < item.cantidad; unidad += 1) {
             saboresAConsumir.push(item.id);
           }
@@ -421,7 +471,7 @@ function PreviewPage() {
     }));
     const porcionesVendidas = new Map();
     for (const item of carrito) {
-      if (item.esSabor && !item.configuracionVenta) {
+      if (item.controlaStock && !item.configuracionVenta) {
         porcionesVendidas.set(
           item.id,
           (porcionesVendidas.get(item.id) ?? 0) + item.cantidad,
@@ -654,13 +704,14 @@ function PreviewPage() {
                     )
                   }
                   onVaciar={() => setCarrito([])}
+                  onEditar={(linea) => { setProductoConfigurando(linea); setLineaEditando(linea); }}
                   notaVenta="La operación de demostración no se guarda."
                   subtotal={subtotal}
                 />
               </div>
             </section>
           )}
-          {seccion === "inventario" && <InventarioDemo />}
+          {seccion === "inventario" && <InventarioDemo productos={productos} setProductos={setProductos} />}
           {seccion === "financiero" && (
             <FinancieroDemo
               periodo={periodo}
@@ -681,9 +732,10 @@ function PreviewPage() {
 
       {productoConfigurando && (
         <ConfiguradorSaboresModal
-          onCancelar={() => setProductoConfigurando(null)}
+          onCancelar={() => { setProductoConfigurando(null); setLineaEditando(null); }}
           onConfirmar={confirmarSabores}
           producto={productoConfigurando}
+          lineaEditando={lineaEditando}
           carrito={carrito}
           saboresDisponibles={productos}
         />
@@ -1036,56 +1088,112 @@ function ListaVentas({ ventas }) {
   );
 }
 
-function InventarioDemo() {
-  const stock = [
-    {
-      nombre: "Helado de vainilla",
-      categoria: "Helados",
-      disponible: 18,
-      minimo: 8,
-    },
-    {
-      nombre: "Café en grano",
-      categoria: "Cafetería",
-      disponible: 6,
-      minimo: 10,
-    },
-    { nombre: "Croissant", categoria: "Panadería", disponible: 22, minimo: 12 },
-    { nombre: "Agua mineral", categoria: "Otros", disponible: 31, minimo: 10 },
-  ];
+function obtenerEstadoStockDemo(producto) {
+  if (!Number.isInteger(producto.stockDisponible)) return "sin-conteo";
+  if (producto.stockDisponible === 0) return "agotado";
+  const minimo = Number.isInteger(producto.stockMinimo) ? producto.stockMinimo : 0;
+  if (producto.stockDisponible <= minimo) return "reponer";
+  if (minimo > 0 && producto.stockDisponible <= minimo * 2) return "por-agotarse";
+  return "en-stock";
+}
+
+const estadosStockDemo = [
+  { id: "todos", nombre: "Todos los estados" },
+  { id: "agotado", nombre: "Agotado" },
+  { id: "reponer", nombre: "Reponer" },
+  { id: "por-agotarse", nombre: "Por agotarse" },
+  { id: "en-stock", nombre: "En stock" },
+  { id: "sin-conteo", nombre: "Sin conteo" },
+];
+
+function InventarioDemo({ productos, setProductos }) {
+  const [cantidadesCarga, setCantidadesCarga] = useState({});
+  const [categoriaActiva, setCategoriaActiva] = useState("todos");
+  const [estadoActivo, setEstadoActivo] = useState("todos");
+  const [orden, setOrden] = useState({ campo: null, direccion: "asc" });
+  const stock = productos.filter((producto) => producto.controlaStock || producto.esSabor);
+  const stockFiltrado = stock
+    .filter((producto) => categoriaActiva === "todos" || producto.categoria === categoriaActiva)
+    .filter((producto) => estadoActivo === "todos" || obtenerEstadoStockDemo(producto) === estadoActivo)
+    .sort((a, b) => {
+      if (orden.campo === "stock") {
+        const stockA = a.stockDisponible;
+        const stockB = b.stockDisponible;
+        if (!Number.isInteger(stockA) && !Number.isInteger(stockB)) return 0;
+        if (!Number.isInteger(stockA)) return 1;
+        if (!Number.isInteger(stockB)) return -1;
+      }
+      const comparacion = orden.campo === "stock"
+        ? a.stockDisponible - b.stockDisponible
+        : a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
+      return orden.direccion === "asc" ? comparacion : -comparacion;
+    });
+
+  function alternarOrden(campo) {
+    setOrden((actual) => {
+      if (actual.campo !== campo) return { campo, direccion: "asc" };
+      if (actual.direccion === "asc") return { campo, direccion: "desc" };
+      return { campo: null, direccion: "asc" };
+    });
+  }
 
   return (
     <section className="mx-auto max-w-6xl">
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">
         Inventario
       </h1>
-      <p className="mt-2 text-slate-600">Vista de existencias de ejemplo.</p>
+      <p className="mt-2 text-slate-600">Carga porciones y ajusta el mínimo requerido por sabor.</p>
+      <div aria-label="Filtrar inventario por categoría" className="mt-5 flex flex-wrap gap-2" role="group">
+        {[{ id: "todos", nombre: "Todas" }, ...categorias.filter(({ id }) => id !== "todos" && stock.some((producto) => producto.categoria === id))]
+          .map((categoria) => (
+            <button aria-pressed={categoriaActiva === categoria.id} className={`rounded-full px-3 py-1.5 text-sm font-medium ${categoriaActiva === categoria.id ? "bg-emerald-800 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`} key={categoria.id} onClick={() => setCategoriaActiva(categoria.id)} type="button">{categoria.nombre}</button>
+          ))}
+      </div>
       <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full min-w-[36rem] text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-5 py-3 font-semibold">Producto</th>
-              <th className="px-5 py-3 font-semibold">Categoría</th>
-              <th className="px-5 py-3 text-right font-semibold">Disponible</th>
-              <th className="px-5 py-3 text-right font-semibold">Estado</th>
+              <th aria-sort={orden.campo === "nombre" ? (orden.direccion === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 font-semibold">
+                <button className="inline-flex items-center gap-1 hover:text-slate-900" onClick={() => alternarOrden("nombre")} type="button">Producto <span aria-hidden="true">{orden.campo === "nombre" ? (orden.direccion === "asc" ? "↑" : "↓") : "↕"}</span></button>
+              </th>
+              <th aria-sort={orden.campo === "stock" ? (orden.direccion === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 font-semibold">
+                <button className="inline-flex items-center gap-1 hover:text-slate-900" onClick={() => alternarOrden("stock")} type="button">Disponible <span aria-hidden="true">{orden.campo === "stock" ? (orden.direccion === "asc" ? "↑" : "↓") : "↕"}</span></button>
+              </th>
+              <th className="px-5 py-3 font-semibold">Mínimo</th>
+              <th className="px-5 py-3 font-semibold">
+                <label className="flex flex-col gap-1.5">Estado
+                  <select aria-label="Filtrar por estado de stock" className="max-w-40 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium normal-case tracking-normal text-slate-700" onChange={(event) => setEstadoActivo(event.target.value)} value={estadoActivo}>
+                    {estadosStockDemo.map((estado) => <option key={estado.id} value={estado.id}>{estado.nombre}</option>)}
+                  </select>
+                </label>
+              </th>
+              <th className="px-5 py-3 font-semibold">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {stock.map((item) => (
-              <tr key={item.nombre}>
+            {stockFiltrado.length === 0 ? (
+              <tr><td className="px-5 py-6 text-center text-slate-500" colSpan={5}>No hay productos en esta categoría.</td></tr>
+            ) : stockFiltrado.map((item) => (
+              <tr key={item.id}>
                 <td className="px-5 py-4 font-medium text-slate-800">
                   {item.nombre}
                 </td>
-                <td className="px-5 py-4 text-slate-600">{item.categoria}</td>
-                <td className="px-5 py-4 text-right text-slate-700">
-                  {item.disponible}
+                <td className="px-5 py-4 text-slate-700">
+                  {Number.isInteger(item.stockDisponible) ? `${item.stockDisponible} ${item.esSabor ? "porciones" : "unidades"}` : "Sin conteo"}
                 </td>
-                <td className="px-5 py-4 text-right">
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.disponible < item.minimo ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}
-                  >
-                    {item.disponible < item.minimo ? "Reponer" : "En stock"}
+                <td className="px-5 py-4">
+                  <input aria-label={`Stock mínimo de ${item.nombre}`} className="w-20 rounded-md border border-slate-300 px-2 py-1.5" min="0" onChange={(event) => setProductos((actuales) => actuales.map((producto) => producto.id === item.id ? { ...producto, stockMinimo: Number(event.target.value) } : producto))} type="number" value={item.stockMinimo ?? 0} />
+                </td>
+                <td className="px-5 py-4">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${{ "agotado": "bg-red-100 text-red-800", "reponer": "bg-red-100 text-red-800", "por-agotarse": "bg-amber-100 text-amber-800", "sin-conteo": "bg-slate-100 text-slate-700", "en-stock": "bg-emerald-100 text-emerald-800" }[obtenerEstadoStockDemo(item)]}`}>
+                    {{ "agotado": "Agotado", "reponer": "Reponer", "por-agotarse": "Por agotarse", "en-stock": "En stock", "sin-conteo": "Cargar stock" }[obtenerEstadoStockDemo(item)]}
                   </span>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <input aria-label={`Porciones para cargar de ${item.nombre}`} className="w-20 rounded-md border border-slate-300 px-2 py-1.5" min="1" onChange={(event) => setCantidadesCarga((actuales) => ({ ...actuales, [item.id]: event.target.value }))} placeholder="Cantidad" type="number" value={cantidadesCarga[item.id] ?? ""} />
+                    <button className="rounded-md border border-emerald-800 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50" onClick={() => { const cantidad = Number(cantidadesCarga[item.id]); if (!Number.isInteger(cantidad) || cantidad < 1) return; setProductos((actuales) => actuales.map((producto) => producto.id === item.id ? { ...producto, stockDisponible: (producto.stockDisponible ?? 0) + cantidad } : producto)); setCantidadesCarga((actuales) => ({ ...actuales, [item.id]: "" })); }} type="button">Cargar stock</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1142,11 +1250,16 @@ function AdministracionDemo({
     setModalProductoAbierto(true);
     setProductoEditando(producto.id);
     setFormularioProducto({
-      nombre: producto.nombre,
-      categoria: producto.categoria,
+      nombre: producto.configuracionVenta ? producto.nombre.replace(/^Cucurucho\s*/i, "") : producto.nombre,
+      categoria: producto.configuracionVenta || producto.esSabor ? "helados" : producto.categoria,
       precio: String(producto.precio),
       detalle: producto.detalle ?? "",
       imagenUrl: producto.imagenUrl ?? "",
+      esSabor: producto.esSabor ?? false,
+      tipoCucurucho: Boolean(producto.configuracionVenta),
+      configurarSabores: Boolean(producto.configuracionVenta),
+      cantidadSabores: String(producto.configuracionVenta?.cantidadSabores ?? 1),
+      stockMinimo: String(producto.stockMinimo ?? 3),
     });
     setErrorProducto("");
     setMensajeProducto("");
@@ -1165,7 +1278,9 @@ function AdministracionDemo({
     setMensajeProducto("");
 
     const nombre = formularioProducto.nombre.trim();
-    const precio = Number(formularioProducto.precio);
+    const precio = formularioProducto.esSabor
+      ? Number(formularioProducto.precio) || 1
+      : Number(formularioProducto.precio);
     const imagenUrl = formularioProducto.imagenUrl.trim();
 
     if (!nombre || !Number.isFinite(precio) || precio <= 0) {
@@ -1185,12 +1300,21 @@ function AdministracionDemo({
     }
 
     const producto = {
+      ...(productoEditando ? productos.find((item) => item.id === productoEditando) : {}),
       id: productoEditando || `demo-producto-${globalThis.crypto.randomUUID()}`,
-      nombre,
-      categoria: formularioProducto.categoria,
+      nombre: formularioProducto.tipoCucurucho ? `Cucurucho ${nombre}` : nombre,
+      categoria: formularioProducto.tipoCucurucho || formularioProducto.esSabor ? "helados" : formularioProducto.categoria,
       precio,
       detalle: formularioProducto.detalle.trim(),
       imagenUrl,
+      esSabor: formularioProducto.esSabor,
+      controlaStock: !formularioProducto.configurarSabores || formularioProducto.esSabor,
+      stockMinimo: (!formularioProducto.configurarSabores || formularioProducto.esSabor) ? Number(formularioProducto.stockMinimo) : undefined,
+      configuracionVenta: formularioProducto.configurarSabores ? {
+        tipo: "sabores",
+        cantidadSabores: Number(formularioProducto.cantidadSabores),
+        permitirRepetidos: true,
+      } : null,
     };
 
     if (productoEditando) {
@@ -1264,19 +1388,11 @@ function AdministracionDemo({
           </button>
         </p>
       )}
-      <button
-        className="mt-6 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900"
-        onClick={() => {
-          setProductoEditando("");
-          setFormularioProducto(formularioProductoDemoVacio);
-          setErrorProducto("");
-          setMensajeProducto("");
-          setModalProductoAbierto(true);
-        }}
-        type="button"
-      >
-        Agregar producto
-      </button>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <button className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900" onClick={() => { setProductoEditando(""); setFormularioProducto({ ...formularioProductoDemoVacio, esSabor: true, precio: "1" }); setErrorProducto(""); setMensajeProducto(""); setModalProductoAbierto(true); }} type="button">Agregar sabor</button>
+        <button className="rounded-lg border border-emerald-800 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50" onClick={() => { setProductoEditando(""); setFormularioProducto({ ...formularioProductoDemoVacio, tipoCucurucho: true, configurarSabores: true }); setErrorProducto(""); setMensajeProducto(""); setModalProductoAbierto(true); }} type="button">Agregar tipo de cucurucho</button>
+        <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setProductoEditando(""); setFormularioProducto(formularioProductoDemoVacio); setErrorProducto(""); setMensajeProducto(""); setModalProductoAbierto(true); }} type="button">Agregar otro producto</button>
+      </div>
       {modalProductoAbierto && (
         <>
           <div
@@ -1298,7 +1414,7 @@ function AdministracionDemo({
               className="text-lg font-semibold text-slate-900 sm:col-span-2"
               id="demo-product-form-title"
             >
-              {productoEditando ? "Editar producto" : "Agregar producto"}
+              {productoEditando ? "Editar producto" : formularioProducto.tipoCucurucho ? "Agregar tipo de cucurucho" : formularioProducto.esSabor ? "Agregar sabor" : "Agregar producto"}
             </h2>
             {errorProducto && (
               <p
@@ -1312,11 +1428,12 @@ function AdministracionDemo({
               className="text-sm font-medium text-slate-700"
               htmlFor="demo-product-name"
             >
-              Nombre
+              {formularioProducto.tipoCucurucho ? "Diferenciación" : formularioProducto.esSabor ? "Nombre del sabor" : "Nombre"}
               <input
                 className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
                 id="demo-product-name"
                 maxLength={120}
+                placeholder={formularioProducto.tipoCucurucho ? "Simple, bañado en chocolate…" : formularioProducto.esSabor ? "Vainilla, chocolate…" : ""}
                 onChange={(event) =>
                   setFormularioProducto({
                     ...formularioProducto,
@@ -1327,7 +1444,7 @@ function AdministracionDemo({
                 value={formularioProducto.nombre}
               />
             </label>
-            <label
+            {!formularioProducto.tipoCucurucho && !formularioProducto.esSabor && <label
               className="text-sm font-medium text-slate-700"
               htmlFor="demo-product-category"
             >
@@ -1351,12 +1468,12 @@ function AdministracionDemo({
                     </option>
                   ))}
               </select>
-            </label>
-            <label
+            </label>}
+            {!formularioProducto.esSabor && <label
               className="text-sm font-medium text-slate-700"
               htmlFor="demo-product-price"
             >
-              Precio
+              {formularioProducto.tipoCucurucho ? "Precio del cucurucho" : "Precio"}
               <input
                 className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
                 id="demo-product-price"
@@ -1372,7 +1489,19 @@ function AdministracionDemo({
                 type="number"
                 value={formularioProducto.precio}
               />
-            </label>
+            </label>}
+            {(formularioProducto.esSabor || (!formularioProducto.configurarSabores && !formularioProducto.tipoCucurucho)) && (
+              <label className="text-sm font-medium text-slate-700" htmlFor="demo-flavor-minimum">
+                {formularioProducto.esSabor ? "Stock mínimo requerido (porciones)" : "Stock mínimo requerido (unidades)"}
+                <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-flavor-minimum" min="0" onChange={(event) => setFormularioProducto({ ...formularioProducto, stockMinimo: event.target.value })} type="number" value={formularioProducto.stockMinimo} />
+              </label>
+            )}
+            {formularioProducto.tipoCucurucho && (
+              <label className="text-sm font-medium text-slate-700" htmlFor="demo-cone-scoops">
+                Bochas disponibles al vender
+                <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-cone-scoops" max="6" min="1" onChange={(event) => setFormularioProducto({ ...formularioProducto, cantidadSabores: event.target.value })} required type="number" value={formularioProducto.cantidadSabores} />
+              </label>
+            )}
             <label
               className="text-sm font-medium text-slate-700 sm:col-span-2"
               htmlFor="demo-product-detail"
@@ -1472,7 +1601,7 @@ function AdministracionDemo({
                     {producto.detalle || "Sin descripción"}
                   </p>
                   <p className="mt-1 font-semibold text-slate-900">
-                    {formatearPrecio(producto.precio)}
+                    {producto.esSabor ? "Sabor (insumo)" : formatearPrecio(producto.precio)}
                   </p>
                 </div>
               </div>
