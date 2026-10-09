@@ -4,6 +4,20 @@ export function crearClaveLineaVenta(productoId, seleccion = []) {
   return JSON.stringify([productoId, [...seleccion].sort()]);
 }
 
+export function calcularCostoUnitarioVenta({ producto, productos, sabores = [] }) {
+  const productoCatalogo = productos.find((item) => item.id === producto.id);
+  if (!Number.isFinite(productoCatalogo?.costo)) return undefined;
+
+  let costoTotal = productoCatalogo.costo;
+  for (const seleccionado of sabores) {
+    const id = typeof seleccionado === "string" ? seleccionado : seleccionado.productoId;
+    const sabor = productos.find((item) => item.id === id);
+    if (!Number.isFinite(sabor?.costo)) return undefined;
+    costoTotal += sabor.costo;
+  }
+  return costoTotal;
+}
+
 export function calcularConsumoSabores(items, productos) {
   const productosPorId = new Map(
     productos.map((producto) => [producto.id, producto]),

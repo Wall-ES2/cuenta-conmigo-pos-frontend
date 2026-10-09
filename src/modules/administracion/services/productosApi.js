@@ -85,6 +85,7 @@ export function normalizarProductoApi(producto) {
 
   const stockDisponible = producto.availablePortions;
   const stockMinimo = producto.minimumPortions;
+  const costo = producto.unitCost;
   if (
     stockDisponible !== undefined &&
     stockDisponible !== null &&
@@ -125,6 +126,10 @@ export function normalizarProductoApi(producto) {
   }
   if (stockMinimo !== undefined && stockMinimo !== null) {
     productoNormalizado.stockMinimo = stockMinimo;
+  }
+  if (costo !== undefined && costo !== null) {
+    if (!Number.isFinite(costo) || costo < 0) throw new Error("El backend devolvió un costo unitario inválido.");
+    productoNormalizado.costo = costo;
   }
 
   return productoNormalizado;
@@ -167,11 +172,16 @@ export function serializarProductoApi(producto) {
     );
   }
 
+  if (producto.costo !== undefined && producto.costo !== null && (!Number.isFinite(producto.costo) || producto.costo < 0)) {
+    throw new Error("El costo unitario debe ser un número igual o mayor que cero.");
+  }
+
   return {
     id: producto.id,
     name: producto.nombre,
     category: producto.categoria,
     price: producto.precio,
+    unitCost: producto.costo ?? null,
     detail: producto.detalle,
     imageUrl: normalizarImagenUrl(producto.imagenUrl) || null,
     isFlavor: producto.esSabor === true,

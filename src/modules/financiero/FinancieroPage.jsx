@@ -21,9 +21,52 @@ const categoriaEtiquetas = {
 
 function FinancieroPage() {
   const [periodo, setPeriodo] = useState("sieteDias");
+  const [fechaEspecifica, setFechaEspecifica] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [categoriaGrafico, setCategoriaGrafico] = useState("todas");
+  const [ordenMetricas, setOrdenMetricas] = useState("default");
   const [reporte, setReporte] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const categoriaSeleccionada = categoriaEtiquetas[categoriaGrafico] ?? categoriaGrafico;
+  const totalVendidoSeleccionado = categoriaGrafico === "todas"
+    ? reporte?.totalFacturado ?? 0
+    : reporte?.porCategoria.find((item) => item.nombre === categoriaGrafico)?.total ?? 0;
+  const datosCategoriaSeleccionada = reporte?.porCategoria.find((item) => item.nombre === categoriaGrafico);
+  const ventasRegistradasSeleccionadas = categoriaGrafico === "todas"
+    ? reporte?.cantidadVentas ?? 0
+    : datosCategoriaSeleccionada?.cantidadVentas ?? 0;
+  const unidadesVendidasSeleccionadas = categoriaGrafico === "todas"
+    ? reporte?.unidadesVendidas ?? 0
+    : datosCategoriaSeleccionada?.cantidad ?? 0;
+  const promedioSeleccionado = ventasRegistradasSeleccionadas
+    ? totalVendidoSeleccionado / ventasRegistradasSeleccionadas
+    : 0;
+  const diasGrafico = reporte?.dias.map((dia) => {
+    if (categoriaGrafico === "todas") return dia;
+    const datosCategoria = dia.porCategoria?.[categoriaGrafico];
+    return { ...dia, total: datosCategoria?.total ?? 0, cantidad: datosCategoria?.cantidad ?? 0 };
+  }) ?? [];
+  const productosDestacados = categoriaGrafico === "todas"
+    ? reporte?.productosMasVendidos ?? []
+    : reporte?.productosPorCategoria?.[categoriaGrafico] ?? [];
+  const metodosPagoSeleccionados = categoriaGrafico === "todas"
+    ? reporte?.porMetodo ?? []
+    : reporte?.porMetodoPorCategoria?.[categoriaGrafico] ?? [];
+  const rangoFechas = Boolean(fechaDesde && fechaHasta && fechaDesde <= fechaHasta);
+  const rangoInvalido = Boolean(fechaDesde && fechaHasta && fechaDesde > fechaHasta);
+  const fechaFinReporte = fechaHasta || fechaDesde || fechaEspecifica;
+  const diasRango = fechaDesde && fechaHasta && !rangoInvalido
+    ? Math.floor((Date.parse(`${fechaHasta}T12:00:00`) - Date.parse(`${fechaDesde}T12:00:00`)) / 86400000) + 1
+    : fechaDesde || fechaHasta ? 1 : 0;
+  const etiquetaPeriodo = rangoFechas
+    ? `${new Date(`${fechaDesde}T12:00:00`).toLocaleDateString("es-CL")} al ${new Date(`${fechaHasta}T12:00:00`).toLocaleDateString("es-CL")}`
+    : fechaDesde || fechaHasta
+      ? new Date(`${fechaFinReporte}T12:00:00`).toLocaleDateString("es-CL")
+    : fechaEspecifica
+    ? new Date(`${fechaEspecifica}T12:00:00`).toLocaleDateString("es-CL")
+    : PERIODOS_REPORTE[periodo].etiqueta;
 
   useEffect(() => {
     let activo = true;
@@ -33,8 +76,8 @@ function FinancieroPage() {
         if (activo) {
           const resumen = calcularReporteVentas(
             ventas,
-            new Date(),
-            PERIODOS_REPORTE[periodo].dias,
+            fechaFinReporte ? new Date(`${fechaFinReporte}T12:00:00`) : new Date(),
+            diasRango ? diasRango : fechaEspecifica ? 1 : PERIODOS_REPORTE[periodo].dias,
           );
           setReporte(resumen);
           setError("");
@@ -56,7 +99,42 @@ function FinancieroPage() {
     return () => {
       activo = false;
     };
-  }, [periodo]);
+  }, [diasRango, fechaEspecifica, fechaDesde, fechaFinReporte, fechaHasta, periodo]);
+
+  function seleccionarFecha(valor) {
+    setCargando(true);
+    setReporte(null);
+    setFechaEspecifica(valor);
+  }
+
+  function seleccionarDiaGrafico(clave) {
+    setFechaDesde("");
+    setFechaHasta("");
+    seleccionarFecha(fechaEspecifica === clave ? "" : clave);
+  }
+
+  function cambiarPeriodo(valor) {
+    setCargando(true);
+    setReporte(null);
+    setFechaEspecifica("");
+    setFechaDesde("");
+    setFechaHasta("");
+    setPeriodo(valor);
+  }
+
+  function cambiarRango(setter, valor) {
+    setCargando(true);
+    setReporte(null);
+    setFechaEspecifica("");
+    setter(valor);
+  }
+
+  const ordenarLista = (items, campo = "total") => [...items].sort((a, b) => {
+    const resultado = campo === "nombre"
+      ? a.nombre.localeCompare(b.nombre, "es")
+      : (a[campo] ?? 0) - (b[campo] ?? 0);
+    return ordenMetricas === "asc" ? resultado : -resultado;
+  });
 
   return (
     <section className="mx-auto max-w-6xl">
@@ -73,6 +151,21 @@ function FinancieroPage() {
             dispositivo.
           </p>
         </div>
+        <label className="text-sm font-medium text-slate-700" htmlFor="categoria-grafico">
+          Categoría de gráficos
+          <select className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="categoria-grafico" onChange={(event) => setCategoriaGrafico(event.target.value)} value={categoriaGrafico}>
+            <option value="todas">Todas las categorías</option>
+            {(reporte?.porCategoria ?? []).map((item) => <option key={item.nombre} value={item.nombre}>{categoriaEtiquetas[item.nombre] ?? item.nombre}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700" htmlFor="fecha-desde">
+          Desde
+          <input className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="fecha-desde" max={fechaHasta || undefined} onChange={(event) => cambiarRango(setFechaDesde, event.target.value)} type="date" value={fechaDesde} />
+        </label>
+        <label className="text-sm font-medium text-slate-700" htmlFor="fecha-hasta">
+          Hasta
+          <input className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="fecha-hasta" min={fechaDesde || undefined} onChange={(event) => cambiarRango(setFechaHasta, event.target.value)} type="date" value={fechaHasta} />
+        </label>
         <label
           className="text-sm font-medium text-slate-700"
           htmlFor="periodo-reporte"
@@ -81,11 +174,7 @@ function FinancieroPage() {
           <select
             className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5"
             id="periodo-reporte"
-            onChange={(event) => {
-              setCargando(true);
-              setReporte(null);
-              setPeriodo(event.target.value);
-            }}
+            onChange={(event) => cambiarPeriodo(event.target.value)}
             value={periodo}
           >
             {Object.entries(PERIODOS_REPORTE).map(([id, opcion]) => (
@@ -96,6 +185,9 @@ function FinancieroPage() {
           </select>
         </label>
       </header>
+
+      <button className="mt-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700" onClick={() => setOrdenMetricas(ordenMetricas === "default" ? "asc" : ordenMetricas === "asc" ? "desc" : "default")} type="button">Ordenar apartados: {ordenMetricas === "default" ? "predeterminado" : ordenMetricas === "asc" ? "ascendente" : "descendente"} · cambiar</button>
+      {rangoInvalido && <p className="mt-3 text-sm text-red-700" role="alert">La fecha inicial debe ser anterior o igual a la fecha final.</p>}
 
       <p className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
         Los reportes reflejan el historial local de este dispositivo. No
@@ -118,28 +210,38 @@ function FinancieroPage() {
       ) : (
         reporte && (
           <>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <TarjetaIndicador
-                detalle={PERIODOS_REPORTE[periodo].etiqueta}
-                etiqueta="Total vendido"
-                valor={formatearPrecio(reporte.totalFacturado)}
+                detalle={etiquetaPeriodo}
+                etiqueta={categoriaGrafico === "todas" ? "Total vendido" : "Total vendido · " + categoriaSeleccionada}
+                valor={formatearPrecio(totalVendidoSeleccionado)}
               />
               <TarjetaIndicador
-                etiqueta="Ventas registradas"
-                valor={reporte.cantidadVentas.toLocaleString("es-CL")}
+                detalle="Suma de todas las ventas guardadas"
+                etiqueta="Total histórico vendido"
+                valor={formatearPrecio(reporte.totalFacturadoHistorico)}
               />
               <TarjetaIndicador
-                etiqueta="Unidades vendidas"
-                valor={reporte.unidadesVendidas.toLocaleString("es-CL")}
+                detalle={reporte.gananciaBruta === null ? `${reporte.unidadesSinCosto} unidades sin costo registrado` : "Ventas menos costo de productos e insumos"}
+                etiqueta="Ganancia bruta estimada"
+                valor={reporte.gananciaBruta === null ? "Faltan costos" : formatearPrecio(reporte.gananciaBruta)}
               />
               <TarjetaIndicador
-                etiqueta="Promedio por venta"
-                valor={formatearPrecio(reporte.promedioPorVenta)}
+                detalle={reporte.margenBrutoPorcentaje === null ? "Disponible al completar los costos" : "Sobre el total vendido"}
+                etiqueta="Margen bruto"
+                valor={reporte.margenBrutoPorcentaje === null ? "—" : `${reporte.margenBrutoPorcentaje.toFixed(1)}%`}
               />
               <TarjetaIndicador
-                detalle={formatearPrecio(reporte.montoPendiente)}
-                etiqueta="Ventas pendientes de sincronizar"
-                valor={reporte.ventasPendientes.toLocaleString("es-CL")}
+                etiqueta={categoriaGrafico === "todas" ? "Ventas registradas" : "Ventas registradas · " + categoriaSeleccionada}
+                valor={ventasRegistradasSeleccionadas.toLocaleString("es-CL")}
+              />
+              <TarjetaIndicador
+                etiqueta={categoriaGrafico === "todas" ? "Unidades vendidas" : "Unidades vendidas · " + categoriaSeleccionada}
+                valor={unidadesVendidasSeleccionadas.toLocaleString("es-CL")}
+              />
+              <TarjetaIndicador
+                etiqueta={categoriaGrafico === "todas" ? "Promedio por venta" : "Promedio por venta · " + categoriaSeleccionada}
+                valor={formatearPrecio(promedioSeleccionado)}
               />
             </div>
 
@@ -152,12 +254,12 @@ function FinancieroPage() {
                   className="text-lg font-semibold text-slate-900"
                   id="tendencia-heading"
                 >
-                  Tendencia diaria
+                  {categoriaGrafico === "todas" ? "Tendencia diaria" : `Tendencia diaria · ${categoriaSeleccionada}`}
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
                   Importe vendido por día en el período elegido.
                 </p>
-                <TendenciaVentas dias={reporte.dias} />
+                <TendenciaVentas compacto={diasGrafico.length >= 30} dias={diasGrafico} onSeleccionarDia={seleccionarDiaGrafico} />
               </section>
 
               <section
@@ -170,16 +272,16 @@ function FinancieroPage() {
                 >
                   Ventas por medio de pago
                 </h2>
-                {reporte.porMetodo.length === 0 ? (
+                {metodosPagoSeleccionados.length === 0 ? (
                   <p className="mt-4 text-sm text-slate-500">
                     Sin ventas en el período.
                   </p>
                 ) : (
                   <ul className="mt-4 divide-y divide-slate-100">
-                    {reporte.porMetodo.map((item) => {
+                    {(ordenMetricas === "default" ? metodosPagoSeleccionados : ordenarLista(metodosPagoSeleccionados)).map((item) => {
                       const porcentaje =
-                        reporte.totalFacturado > 0
-                          ? (item.total / reporte.totalFacturado) * 100
+                        totalVendidoSeleccionado > 0
+                          ? (item.total / totalVendidoSeleccionado) * 100
                           : 0;
 
                       return (
@@ -203,7 +305,7 @@ function FinancieroPage() {
               </section>
             </div>
 
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
               <section
                 aria-labelledby="categorias-heading"
                 className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -220,7 +322,7 @@ function FinancieroPage() {
                   </p>
                 ) : (
                   <ul className="mt-4 space-y-4">
-                    {reporte.porCategoria.map((item) => {
+                    {(ordenMetricas === "default" ? reporte.porCategoria : ordenarLista(reporte.porCategoria)).map((item) => {
                       const porcentaje =
                         reporte.totalFacturado > 0
                           ? (item.total / reporte.totalFacturado) * 100
@@ -265,15 +367,15 @@ function FinancieroPage() {
                   className="text-lg font-semibold text-slate-900"
                   id="productos-heading"
                 >
-                  Productos más vendidos
+                  {categoriaGrafico === "helados" ? "Helados más vendidos" : categoriaGrafico === "todas" ? "Productos más vendidos" : `Más vendidos · ${categoriaSeleccionada}`}
                 </h2>
-                {reporte.productosMasVendidos.length === 0 ? (
+                {productosDestacados.length === 0 ? (
                   <p className="mt-4 text-sm text-slate-500">
                     Sin productos vendidos en el período.
                   </p>
                 ) : (
                   <ol className="mt-4 divide-y divide-slate-100">
-                    {reporte.productosMasVendidos.map((item, indice) => (
+                    {(ordenMetricas === "default" ? productosDestacados : ordenarLista(productosDestacados, "cantidad")).map((item, indice) => (
                       <li
                         className="flex items-center justify-between gap-3 py-3 text-sm"
                         key={item.nombre}
@@ -285,6 +387,18 @@ function FinancieroPage() {
                           {formatearPrecio(item.total)}
                         </span>
                       </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+              <section aria-labelledby="sabores-heading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-semibold text-slate-900" id="sabores-heading">Sabores de helado más elegidos</h2>
+                {reporte.saboresMasElegidos.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-500">No hay sabores seleccionados en el período.</p>
+                ) : (
+                  <ol className="mt-4 divide-y divide-slate-100">
+                    {(ordenMetricas === "default" ? reporte.saboresMasElegidos : ordenarLista(reporte.saboresMasElegidos, "cantidad")).map((item, indice) => (
+                      <li className="py-3 text-sm text-slate-700" key={item.nombre}>{indice + 1}. {item.nombre} · {item.cantidad} bochas</li>
                     ))}
                   </ol>
                 )}
@@ -332,7 +446,7 @@ function FinancieroPage() {
                               {venta.metodoPago || "Sin especificar"} ·{" "}
                               {venta.estado === "sincronizada"
                                 ? "Sincronizada"
-                                : "Pendiente"}{" "}
+                                : "Pendiente de sincronizar"}{" "}
                               ·{" "}
                               {venta.items.reduce(
                                 (total, item) => total + item.cantidad,

@@ -13,6 +13,7 @@ import {
 import { listarProductosApi } from "../../administracion/services/productosApi.js";
 import {
   calcularConsumoSabores,
+  calcularCostoUnitarioVenta,
   crearClaveLineaVenta,
   validarDisponibilidadSaboresEnCarrito,
   normalizarConfiguracionVenta,
@@ -43,6 +44,9 @@ function validarProducto(producto) {
 
   if (!Number.isFinite(producto.precio) || producto.precio <= 0) {
     throw new Error("El precio del producto debe ser mayor que cero.");
+  }
+  if (producto.costo !== undefined && producto.costo !== null && (!Number.isFinite(producto.costo) || producto.costo < 0)) {
+    throw new Error("El costo unitario debe ser un número igual o mayor que cero.");
   }
 
   const esSabor = producto.esSabor ?? false;
@@ -448,17 +452,20 @@ export const useVentasStore = create((set, get) => ({
     const creadaEn = new Date().toISOString();
     const venta = {
       id: globalThis.crypto.randomUUID(),
-      items: carrito.map(
-        ({ id, nombre, categoria, precio, cantidad, sabores }) => ({
-          productoId: id,
-          nombre,
-          categoria,
-          precioUnitario: precio,
-          cantidad,
-          totalLinea: precio * cantidad,
-          sabores: sabores ?? [],
-        }),
-      ),
+      items: carrito.map((linea) => {
+        const sabores = linea.sabores ?? [];
+        const costoUnitario = calcularCostoUnitarioVenta({ producto: linea, productos, sabores });
+        return {
+          productoId: linea.id,
+          nombre: linea.nombre,
+          categoria: linea.categoria,
+          precioUnitario: linea.precio,
+          cantidad: linea.cantidad,
+          totalLinea: linea.precio * linea.cantidad,
+          sabores,
+          ...(costoUnitario === undefined ? {} : { costoUnitario }),
+        };
+      }),
       total: carrito.reduce(
         (total, item) => total + item.precio * item.cantidad,
         0,

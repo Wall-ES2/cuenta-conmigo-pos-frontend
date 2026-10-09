@@ -20,6 +20,7 @@ const formularioVacio = {
   tipoCucurucho: false,
   categoria: "helados",
   precio: "",
+  costo: "",
   detalle: "",
   imagenUrl: "",
   esSabor: false,
@@ -132,6 +133,7 @@ function AdministracionPage() {
       tipoCucurucho: Boolean(producto.configuracionVenta),
       categoria: producto.configuracionVenta || producto.esSabor ? "helados" : producto.categoria,
       precio: String(producto.precio),
+      costo: producto.costo === undefined ? "" : String(producto.costo),
       detalle: producto.detalle ?? "",
       imagenUrl: producto.imagenUrl ?? "",
       esSabor: producto.esSabor ?? false,
@@ -198,6 +200,9 @@ function AdministracionPage() {
           "Primero registra al menos un producto como sabor de helado.",
         );
       }
+      if (formulario.costo !== "" && (!Number.isFinite(Number(formulario.costo)) || Number(formulario.costo) < 0)) {
+        throw new Error("El costo unitario debe ser un número igual o mayor que cero.");
+      }
     } catch (validationError) {
       setError(
         validationError instanceof Error
@@ -218,6 +223,7 @@ function AdministracionPage() {
       precio: formulario.esSabor
         ? Number(formulario.precio) || 1
         : Number(formulario.precio),
+      costo: formulario.costo === "" ? undefined : Number(formulario.costo),
       detalle: formulario.detalle.trim(),
       imagenUrl: formulario.imagenUrl.trim(),
       esSabor: formulario.tipoCucurucho ? false : formulario.esSabor,
@@ -243,6 +249,7 @@ function AdministracionPage() {
           ...creado,
           controlaStock: producto.controlaStock,
           stockMinimo: creado.stockMinimo ?? producto.stockMinimo,
+          costo: creado.costo ?? producto.costo,
         });
       }
 
@@ -569,6 +576,12 @@ function AdministracionPage() {
                 value={formulario.precio}
               />
             </label>}
+
+            <label className="text-sm font-medium text-slate-700" htmlFor="producto-costo">
+              {formulario.esSabor ? "Costo por porción" : formulario.tipoCucurucho ? "Costo base del cucurucho" : "Costo unitario"}
+              <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="producto-costo" min="0" onChange={(event) => setFormulario({ ...formulario, costo: event.target.value })} placeholder="Opcional" step="0.01" type="number" value={formulario.costo} />
+              <span className="mt-1 block text-xs font-normal text-slate-500">Permite estimar la ganancia bruta. En sabores, indica el costo de una bocha.</span>
+            </label>
 
             <label
               className="text-sm font-medium text-slate-700 md:col-span-2"

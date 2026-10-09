@@ -143,6 +143,7 @@ describe("normalizarProductoApi", () => {
         name: "Helado de 2 bochas",
         category: "helados",
         price: 2500,
+        unitCost: null,
         detail: "",
         imageUrl: null,
         isFlavor: false,

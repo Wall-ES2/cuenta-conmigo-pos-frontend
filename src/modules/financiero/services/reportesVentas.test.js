@@ -18,7 +18,7 @@ describe('calcularReporteVentas', () => {
         fecha: hoy,
         total: 3000,
         items: [
-          { nombre: 'Helado', categoria: 'helados', cantidad: 2, totalLinea: 3000 }
+          { nombre: 'Cucurucho simple', categoria: 'helados', cantidad: 2, totalLinea: 3000, costoUnitario: 500, sabores: [{ productoId: 'vainilla', nombre: 'Vainilla' }] }
         ],
         estado: 'pendiente',
         metodoPago: 'Efectivo'
@@ -50,9 +50,13 @@ describe('calcularReporteVentas', () => {
     assert.equal(reporte.montoPendiente, 3000)
     assert.deepEqual(reporte.porMetodo.map(({ nombre }) => nombre), ['Efectivo', 'Tarjeta'])
     assert.equal(reporte.porCategoria[0].nombre, 'helados')
-    assert.equal(reporte.productosMasVendidos[0].nombre, 'Helado')
+    assert.equal(reporte.productosMasVendidos[0].nombre, 'Cucurucho simple')
+    assert.equal(reporte.productosPorCategoria.helados[0].nombre, 'Cucurucho simple')
+    assert.equal(reporte.saboresMasElegidos[0].nombre, 'Vainilla')
+    assert.equal(reporte.saboresMasElegidos[0].cantidad, 2)
     assert.equal(reporte.dias.length, 7)
     assert.equal(reporte.dias[6].total, 3000)
+    assert.equal(reporte.dias[6].porCategoria.helados.total, 3000)
     assert.equal(reporte.ventasRecientes[0].id, 'venta-1')
   })
 
@@ -67,6 +71,22 @@ describe('calcularReporteVentas', () => {
     assert.equal(reporte.dias[0].total, 0)
     assert.deepEqual(reporte.porMetodo, [])
     assert.deepEqual(reporte.ventasRecientes, [])
+  })
+
+  it('calcula facturación histórica y ganancia bruta cuando hay costos guardados', () => {
+    const reporte = calcularReporteVentas([
+      crearVenta({
+        id: 'venta-con-costo',
+        fecha: new Date(2026, 9, 6, 10).toISOString(),
+        total: 3000,
+        items: [{ nombre: 'Cucurucho', categoria: 'helados', cantidad: 2, totalLinea: 3000, costoUnitario: 700 }],
+      }),
+    ], new Date(2026, 9, 6, 12), 1)
+
+    assert.equal(reporte.totalFacturadoHistorico, 3000)
+    assert.equal(reporte.costoMercaderia, 1400)
+    assert.equal(reporte.gananciaBruta, 1600)
+    assert.equal(reporte.margenBrutoPorcentaje, 1600 / 3000 * 100)
   })
 
   it('informa datos corruptos en lugar de omitirlos silenciosamente', () => {

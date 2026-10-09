@@ -2,6 +2,7 @@ import { ventasDatabase } from '../../ventas/data/ventasDatabase.js'
 
 export const PERIODOS_REPORTE = {
   hoy: { etiqueta: 'Hoy', dias: 1 },
+  noventaDias: { etiqueta: 'Últimos 90 días', dias: 90 },
   sieteDias: { etiqueta: 'Últimos 7 días', dias: 7 },
   treintaDias: { etiqueta: 'Últimos 30 días', dias: 30 }
 }
@@ -39,17 +40,23 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
       fecha,
       clave: claveFecha(fecha),
       total: 0,
-      cantidad: 0
+      cantidad: 0,
+      porCategoria: {}
     }
   })
   const porDia = new Map(dias.map((dia) => [dia.clave, dia]))
   const porMetodo = new Map()
+  const porMetodoPorCategoria = new Map()
   const porCategoria = new Map()
   const porProducto = new Map()
+  const productosPorCategoria = new Map()
+  const porSabor = new Map()
   let totalFacturado = 0
   let unidadesVendidas = 0
   let ventasPendientes = 0
   let montoPendiente = 0
+  let costoMercaderia = 0
+  let unidadesSinCosto = 0
 
   for (const venta of ventasPeriodo) {
     const fecha = new Date(venta.creadaEn)
@@ -67,6 +74,7 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
 
     sumarAgrupado(porMetodo, venta.metodoPago || 'Sin especificar', venta.total, 1)
 
+    const totalesCategoriasVenta = new Map()
     for (const item of venta.items) {
       if (
         !item
@@ -79,8 +87,34 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
       }
 
       unidadesVendidas += item.cantidad
+      if (Number.isFinite(item.costoUnitario) && item.costoUnitario >= 0) {
+        costoMercaderia += item.costoUnitario * item.cantidad
+      } else {
+        unidadesSinCosto += item.cantidad
+      }
       sumarAgrupado(porCategoria, item.categoria, item.totalLinea, item.cantidad)
+      totalesCategoriasVenta.set(item.categoria, (totalesCategoriasVenta.get(item.categoria) ?? 0) + item.totalLinea)
       sumarAgrupado(porProducto, item.nombre, item.totalLinea, item.cantidad)
+      if (!productosPorCategoria.has(item.categoria)) {
+        productosPorCategoria.set(item.categoria, new Map())
+      }
+      sumarAgrupado(productosPorCategoria.get(item.categoria), item.nombre, item.totalLinea, item.cantidad)
+      const categoriaDia = dia.porCategoria[item.categoria] ?? { total: 0, cantidad: 0 }
+      categoriaDia.total += item.totalLinea
+      categoriaDia.cantidad += item.cantidad
+      dia.porCategoria[item.categoria] = categoriaDia
+
+      for (const sabor of item.sabores ?? []) {
+        if (!sabor || typeof sabor.nombre !== 'string') continue
+        sumarAgrupado(porSabor, sabor.nombre, 0, item.cantidad)
+      }
+    }
+
+    for (const [categoria, totalCategoria] of totalesCategoriasVenta) {
+      const datosCategoria = porCategoria.get(categoria)
+      datosCategoria.cantidadVentas = (datosCategoria.cantidadVentas ?? 0) + 1
+      if (!porMetodoPorCategoria.has(categoria)) porMetodoPorCategoria.set(categoria, new Map())
+      sumarAgrupado(porMetodoPorCategoria.get(categoria), venta.metodoPago || 'Sin especificar', totalCategoria, 1)
     }
   }
 
@@ -89,14 +123,28 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
     hasta,
     dias,
     totalFacturado,
+    totalFacturadoHistorico: ventas.reduce((total, venta) => total + venta.total, 0),
     cantidadVentas: ventasPeriodo.length,
     unidadesVendidas,
     promedioPorVenta: ventasPeriodo.length ? totalFacturado / ventasPeriodo.length : 0,
     ventasPendientes,
     montoPendiente,
+    costoMercaderia: unidadesSinCosto === 0 ? costoMercaderia : null,
+    gananciaBruta: unidadesSinCosto === 0 ? totalFacturado - costoMercaderia : null,
+    margenBrutoPorcentaje: unidadesSinCosto === 0 && totalFacturado > 0
+      ? ((totalFacturado - costoMercaderia) / totalFacturado) * 100
+      : null,
+    unidadesSinCosto,
     porMetodo: ordenarPorTotal(porMetodo),
+    porMetodoPorCategoria: Object.fromEntries(
+      [...porMetodoPorCategoria].map(([categoria, metodos]) => [categoria, ordenarPorTotal(metodos)]),
+    ),
     porCategoria: ordenarPorTotal(porCategoria),
     productosMasVendidos: ordenarPorCantidad(porProducto).slice(0, 5),
+    productosPorCategoria: Object.fromEntries(
+      [...productosPorCategoria].map(([categoria, productos]) => [categoria, ordenarPorCantidad(productos).slice(0, 5)]),
+    ),
+    saboresMasElegidos: ordenarPorCantidad(porSabor).slice(0, 5),
     ventasRecientes: [...ventasPeriodo].sort(
       (a, b) => new Date(b.creadaEn) - new Date(a.creadaEn)
     ).slice(0, 8)

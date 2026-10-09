@@ -9,6 +9,7 @@ import ConfiguradorSaboresModal from "../modules/ventas/components/ConfiguradorS
 import ProductoCard from "../modules/ventas/components/ProductoCard.jsx";
 import {
   crearClaveLineaVenta,
+  calcularCostoUnitarioVenta,
   validarDisponibilidadSaboresEnCarrito,
   validarSeleccionSabores,
 } from "../modules/ventas/domain/configuracionSabores.js";
@@ -32,6 +33,7 @@ const productosDemo = [
     nombre: "Vainilla",
     categoria: "helados",
     precio: 1,
+    costo: 180,
     detalle: "Sabor de helado",
     imagenUrl: "",
     esSabor: true,
@@ -44,6 +46,7 @@ const productosDemo = [
     nombre: "Chocolate",
     categoria: "helados",
     precio: 1,
+    costo: 220,
     detalle: "Sabor de helado",
     imagenUrl: "",
     esSabor: true,
@@ -56,6 +59,7 @@ const productosDemo = [
     nombre: "Cucurucho doble",
     categoria: "helados",
     precio: 2500,
+    costo: 350,
     detalle: "Cucurucho · doble",
     imagenUrl: "",
     configuracionVenta: {
@@ -69,6 +73,7 @@ const productosDemo = [
     nombre: "Facturas",
     categoria: "panaderia",
     precio: 750,
+    costo: 300,
     detalle: "Unidad",
     imagenUrl: "",
     controlaStock: true,
@@ -80,6 +85,7 @@ const productosDemo = [
     nombre: "Café latte",
     categoria: "cafeteria",
     precio: 2200,
+    costo: 680,
     controlaStock: true,
     stockDisponible: 12,
     stockMinimo: 3,
@@ -91,6 +97,7 @@ const productosDemo = [
     nombre: "Capuccino",
     categoria: "cafeteria",
     precio: 2400,
+    costo: 720,
     controlaStock: true,
     stockDisponible: 10,
     stockMinimo: 3,
@@ -102,6 +109,7 @@ const productosDemo = [
     nombre: "Croissant",
     categoria: "panaderia",
     precio: 1600,
+    costo: 500,
     controlaStock: true,
     stockDisponible: 14,
     stockMinimo: 4,
@@ -113,6 +121,7 @@ const productosDemo = [
     nombre: "Medialuna",
     categoria: "panaderia",
     precio: 900,
+    costo: 270,
     controlaStock: true,
     stockDisponible: 20,
     stockMinimo: 5,
@@ -124,6 +133,7 @@ const productosDemo = [
     nombre: "Agua mineral",
     categoria: "otros",
     precio: 1200,
+    costo: 350,
     controlaStock: true,
     stockDisponible: 9,
     stockMinimo: 3,
@@ -151,6 +161,7 @@ const formularioProductoDemoVacio = {
   nombre: "",
   categoria: "helados",
   precio: "",
+  costo: "",
   detalle: "",
   imagenUrl: "",
   esSabor: false,
@@ -180,12 +191,14 @@ function crearVentasDemo() {
         categoria: "cafeteria",
         cantidad: 2,
         totalLinea: 4400,
+        costoUnitario: 680,
       },
       {
         nombre: "Croissant",
         categoria: "panaderia",
         cantidad: 1,
         totalLinea: 1600,
+        costoUnitario: 500,
       },
     ]),
     ventaDemo(
@@ -194,10 +207,12 @@ function crearVentasDemo() {
       "Efectivo",
       [
         {
-          nombre: "Vainilla",
+          nombre: "Cucurucho simple",
           categoria: "helados",
           cantidad: 2,
           totalLinea: 3600,
+          sabores: [{ productoId: "demo-sabor-vainilla", nombre: "Vainilla" }],
+          costoUnitario: 480,
         },
       ],
       "pendiente",
@@ -208,12 +223,14 @@ function crearVentasDemo() {
         categoria: "cafeteria",
         cantidad: 1,
         totalLinea: 2400,
+        costoUnitario: 720,
       },
       {
         nombre: "Medialuna",
         categoria: "panaderia",
         cantidad: 2,
         totalLinea: 1800,
+        costoUnitario: 270,
       },
     ]),
     ventaDemo("demo-venta-4", fecha(2, 14), "Transferencia", [
@@ -222,20 +239,28 @@ function crearVentasDemo() {
         categoria: "helados",
         cantidad: 2,
         totalLinea: 5000,
+          sabores: [
+            { productoId: "demo-sabor-vainilla", nombre: "Vainilla" },
+            { productoId: "demo-sabor-chocolate", nombre: "Chocolate" },
+          ],
+          costoUnitario: 750,
       },
     ]),
     ventaDemo("demo-venta-5", fecha(4, 16), "Tarjeta", [
       {
-        nombre: "Chocolate",
+          nombre: "Cucurucho simple",
         categoria: "helados",
         cantidad: 2,
         totalLinea: 3800,
+          sabores: [{ productoId: "demo-sabor-chocolate", nombre: "Chocolate" }],
+          costoUnitario: 520,
       },
       {
         nombre: "Agua mineral",
         categoria: "otros",
         cantidad: 1,
         totalLinea: 1200,
+        costoUnitario: 350,
       },
     ]),
     ventaDemo("demo-venta-6", fecha(6, 13), "Efectivo", [
@@ -244,12 +269,14 @@ function crearVentasDemo() {
         categoria: "cafeteria",
         cantidad: 1,
         totalLinea: 2200,
+        costoUnitario: 680,
       },
       {
         nombre: "Croissant",
         categoria: "panaderia",
         cantidad: 1,
         totalLinea: 1600,
+        costoUnitario: 500,
       },
     ]),
   ];
@@ -283,6 +310,9 @@ function PreviewPage() {
   const [productos, setProductos] = useState(productosDemo);
   const [usuariosDemo, setUsuariosDemo] = useState(usuariosDemoIniciales);
   const [periodo, setPeriodo] = useState(7);
+  const [fechaEspecifica, setFechaEspecifica] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const navegacionVisible =
     rolActivo === "Administrador"
       ? navegacion
@@ -305,10 +335,18 @@ function PreviewPage() {
     );
   }, [busqueda, categoriaActiva, productos]);
 
-  const reporte = useMemo(
-    () => calcularReporteVentas(ventas, new Date(), periodo),
-    [periodo, ventas],
-  );
+  const reporte = useMemo(() => {
+    const rangoValido = fechaDesde && fechaHasta && fechaDesde <= fechaHasta;
+    const fechaFin = fechaHasta || fechaDesde || fechaEspecifica;
+    const diasRango = fechaDesde && fechaHasta && rangoValido
+      ? Math.floor((Date.parse(fechaHasta + "T12:00:00") - Date.parse(fechaDesde + "T12:00:00")) / 86400000) + 1
+      : fechaDesde || fechaHasta ? 1 : 0;
+    return calcularReporteVentas(
+      ventas,
+      fechaFin ? new Date(fechaFin + "T12:00:00") : new Date(),
+      diasRango || (fechaEspecifica ? 1 : periodo),
+    );
+  }, [fechaDesde, fechaHasta, fechaEspecifica, periodo, ventas]);
 
   function agregarAlCarrito(producto, seleccionSabores = []) {
     const saboresIds = validarSeleccionSabores({
@@ -461,14 +499,19 @@ function PreviewPage() {
       return;
     }
 
-    const items = carrito.map((item) => ({
-      productoId: item.id,
-      nombre: item.nombre,
-      categoria: item.categoria,
-      cantidad: item.cantidad,
-      totalLinea: item.precio * item.cantidad,
-      sabores: item.sabores ?? [],
-    }));
+    const items = carrito.map((item) => {
+      const sabores = item.sabores ?? [];
+      const costoUnitario = calcularCostoUnitarioVenta({ producto: item, productos, sabores });
+      return {
+        productoId: item.id,
+        nombre: item.nombre,
+        categoria: item.categoria,
+        cantidad: item.cantidad,
+        totalLinea: item.precio * item.cantidad,
+        sabores,
+        ...(costoUnitario === undefined ? {} : { costoUnitario }),
+      };
+    });
     const porcionesVendidas = new Map();
     for (const item of carrito) {
       if (item.controlaStock && !item.configuracionVenta) {
@@ -714,9 +757,15 @@ function PreviewPage() {
           {seccion === "inventario" && <InventarioDemo productos={productos} setProductos={setProductos} />}
           {seccion === "financiero" && (
             <FinancieroDemo
+              fechaEspecifica={fechaEspecifica}
+              fechaDesde={fechaDesde}
+              fechaHasta={fechaHasta}
               periodo={periodo}
               reporte={reporte}
-              seleccionarPeriodo={setPeriodo}
+              seleccionarDia={(clave) => { setFechaDesde(""); setFechaHasta(""); setFechaEspecifica((actual) => actual === clave ? "" : clave); }}
+              cambiarFechaDesde={(valor) => { setFechaEspecifica(""); setFechaDesde(valor); }}
+              cambiarFechaHasta={(valor) => { setFechaEspecifica(""); setFechaHasta(valor); }}
+              seleccionarPeriodo={(valor) => { setFechaEspecifica(""); setFechaDesde(""); setFechaHasta(""); setPeriodo(valor); }}
             />
           )}
           {seccion === "administracion" && (
@@ -875,37 +924,71 @@ function InicioDemo({ rolActivo, seleccionarSeccion }) {
   );
 }
 
-function ResumenIndicadores({ periodo, reporte }) {
-  const etiquetaPeriodo = periodo === 1 ? "Hoy" : `Últimos ${periodo} días`;
+function ResumenIndicadores({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHasta, categoriaGrafico }) {
+  const categoriaSeleccionada = categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
+  const totalVendidoSeleccionado = categoriaGrafico === "todas"
+    ? reporte.totalFacturado
+    : reporte.porCategoria.find((item) => item.nombre === categoriaGrafico)?.total ?? 0;
+  const datosCategoriaSeleccionada = reporte.porCategoria.find((item) => item.nombre === categoriaGrafico);
+  const ventasRegistradasSeleccionadas = categoriaGrafico === "todas"
+    ? reporte.cantidadVentas
+    : datosCategoriaSeleccionada?.cantidadVentas ?? 0;
+  const unidadesVendidasSeleccionadas = categoriaGrafico === "todas"
+    ? reporte.unidadesVendidas
+    : datosCategoriaSeleccionada?.cantidad ?? 0;
+  const promedioSeleccionado = ventasRegistradasSeleccionadas
+    ? totalVendidoSeleccionado / ventasRegistradasSeleccionadas
+    : 0;
+  const etiquetaPeriodo = fechaDesde && fechaHasta
+    ? `${new Date(fechaDesde + "T12:00:00").toLocaleDateString("es-CL")} al ${new Date(fechaHasta + "T12:00:00").toLocaleDateString("es-CL")}`
+    : fechaDesde || fechaHasta
+      ? new Date((fechaDesde || fechaHasta) + "T12:00:00").toLocaleDateString("es-CL")
+      : fechaEspecifica ? new Date(`${fechaEspecifica}T12:00:00`).toLocaleDateString("es-CL") : periodo === 1 ? "Hoy" : `Últimos ${periodo} días`;
 
   return (
-    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <TarjetaIndicador
-        etiqueta={`Total vendido (${etiquetaPeriodo})`}
-        valor={formatearPrecio(reporte.totalFacturado)}
+        detalle={etiquetaPeriodo}
+        etiqueta={categoriaGrafico === "todas" ? "Total vendido" : "Total vendido · " + categoriaSeleccionada}
+        valor={formatearPrecio(totalVendidoSeleccionado)}
+      />
+      <TarjetaIndicador etiqueta="Total histórico vendido" detalle="Todas las ventas guardadas" valor={formatearPrecio(reporte.totalFacturadoHistorico)} />
+      <TarjetaIndicador etiqueta="Ganancia bruta estimada" detalle={reporte.gananciaBruta === null ? `${reporte.unidadesSinCosto} unidades sin costo registrado` : "Ventas menos costos de producto e insumos"} valor={reporte.gananciaBruta === null ? "Faltan costos" : formatearPrecio(reporte.gananciaBruta)} />
+      <TarjetaIndicador etiqueta="Margen bruto" detalle={reporte.margenBrutoPorcentaje === null ? "Disponible al completar los costos" : "Sobre el total vendido"} valor={reporte.margenBrutoPorcentaje === null ? "—" : `${reporte.margenBrutoPorcentaje.toFixed(1)}%`} />
+      <TarjetaIndicador
+        etiqueta={categoriaGrafico === "todas" ? "Ventas registradas" : "Ventas registradas · " + categoriaSeleccionada}
+        valor={String(ventasRegistradasSeleccionadas)}
       />
       <TarjetaIndicador
-        etiqueta="Ventas registradas"
-        valor={String(reporte.cantidadVentas)}
+        etiqueta={categoriaGrafico === "todas" ? "Unidades vendidas" : "Unidades vendidas · " + categoriaSeleccionada}
+        valor={String(unidadesVendidasSeleccionadas)}
       />
       <TarjetaIndicador
-        etiqueta="Unidades vendidas"
-        valor={String(reporte.unidadesVendidas)}
-      />
-      <TarjetaIndicador
-        etiqueta="Promedio por venta"
-        valor={formatearPrecio(reporte.promedioPorVenta)}
-      />
-      <TarjetaIndicador
-        detalle={formatearPrecio(reporte.montoPendiente)}
-        etiqueta="Pendientes de sincronizar"
-        valor={String(reporte.ventasPendientes)}
+        etiqueta={categoriaGrafico === "todas" ? "Promedio por venta" : "Promedio por venta · " + categoriaSeleccionada}
+        valor={formatearPrecio(promedioSeleccionado)}
       />
     </div>
   );
 }
 
-function FinancieroDemo({ periodo, reporte, seleccionarPeriodo }) {
+function FinancieroDemo({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHasta, seleccionarDia, cambiarFechaDesde, cambiarFechaHasta, seleccionarPeriodo }) {
+  const [categoriaGrafico, setCategoriaGrafico] = useState("todas");
+  const categoriaSeleccionada = categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
+  const diasGrafico = reporte.dias.map((dia) => {
+    if (categoriaGrafico === "todas") return dia;
+    const datosCategoria = dia.porCategoria?.[categoriaGrafico];
+    return { ...dia, total: datosCategoria?.total ?? 0, cantidad: datosCategoria?.cantidad ?? 0 };
+  });
+  const productosDestacados = categoriaGrafico === "todas"
+    ? reporte.productosMasVendidos
+    : reporte.productosPorCategoria?.[categoriaGrafico] ?? [];
+  const metodosPagoSeleccionados = categoriaGrafico === "todas"
+    ? reporte.porMetodo
+    : reporte.porMetodoPorCategoria?.[categoriaGrafico] ?? [];
+  const totalVendidoSeleccionado = categoriaGrafico === "todas"
+    ? reporte.totalFacturado
+    : reporte.porCategoria.find((item) => item.nombre === categoriaGrafico)?.total ?? 0;
+
   return (
     <section className="mx-auto max-w-6xl">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -920,6 +1003,21 @@ function FinancieroDemo({ periodo, reporte, seleccionarPeriodo }) {
             Indicadores de ejemplo para recorrer el tablero.
           </p>
         </div>
+        <label className="text-sm font-medium text-slate-700" htmlFor="demo-categoria-grafico">
+          Categoría de gráficos
+          <select className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="demo-categoria-grafico" onChange={(event) => setCategoriaGrafico(event.target.value)} value={categoriaGrafico}>
+            <option value="todas">Todas las categorías</option>
+            {reporte.porCategoria.map((item) => <option key={item.nombre} value={item.nombre}>{categoriaNombre[item.nombre] ?? item.nombre}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700" htmlFor="demo-fecha-desde">
+          Desde
+          <input className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="demo-fecha-desde" max={fechaHasta || undefined} onChange={(event) => cambiarFechaDesde(event.target.value)} type="date" value={fechaDesde} />
+        </label>
+        <label className="text-sm font-medium text-slate-700" htmlFor="demo-fecha-hasta">
+          Hasta
+          <input className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="demo-fecha-hasta" min={fechaDesde || undefined} onChange={(event) => cambiarFechaHasta(event.target.value)} type="date" value={fechaHasta} />
+        </label>
         <label
           className="text-sm font-medium text-slate-700"
           htmlFor="demo-periodo"
@@ -934,16 +1032,17 @@ function FinancieroDemo({ periodo, reporte, seleccionarPeriodo }) {
             <option value={1}>Hoy</option>
             <option value={7}>Últimos 7 días</option>
             <option value={30}>Últimos 30 días</option>
+            <option value={90}>Últimos 90 días</option>
           </select>
         </label>
       </header>
-      <ResumenIndicadores periodo={periodo} reporte={reporte} />
+      <ResumenIndicadores categoriaGrafico={categoriaGrafico} fechaDesde={fechaDesde} fechaHasta={fechaHasta} fechaEspecifica={fechaEspecifica} periodo={periodo} reporte={reporte} />
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
-            Tendencia diaria
+            {categoriaGrafico === "todas" ? "Tendencia diaria" : `Tendencia diaria · ${categoriaSeleccionada}`}
           </h2>
-          <TendenciaVentas dias={reporte.dias} />
+          <TendenciaVentas compacto={diasGrafico.length >= 30} dias={diasGrafico} onSeleccionarDia={seleccionarDia} />
         </section>
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
@@ -951,12 +1050,12 @@ function FinancieroDemo({ periodo, reporte, seleccionarPeriodo }) {
           </h2>
           <ListaAgrupacion
             cantidadEtiqueta="ventas"
-            elementos={reporte.porMetodo}
-            totalPeriodo={reporte.totalFacturado}
+            elementos={metodosPagoSeleccionados}
+            totalPeriodo={totalVendidoSeleccionado}
           />
         </section>
       </div>
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
             Ventas por categoría
@@ -971,12 +1070,16 @@ function FinancieroDemo({ periodo, reporte, seleccionarPeriodo }) {
         </section>
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
-            Productos más vendidos
+            {categoriaGrafico === "helados" ? "Helados más vendidos" : categoriaGrafico === "todas" ? "Productos más vendidos" : `Más vendidos · ${categoriaSeleccionada}`}
           </h2>
           <ListaAgrupacion
-            elementos={reporte.productosMasVendidos}
+            elementos={productosDestacados}
             totalPeriodo={reporte.totalFacturado}
           />
+        </section>
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Sabores de helado más elegidos</h2>
+          <ListaAgrupacion cantidadEtiqueta="bochas" elementos={reporte.saboresMasElegidos} mostrarTotal={false} />
         </section>
       </div>
       <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -993,7 +1096,16 @@ function ListaAgrupacion({
   elementos,
   cantidadEtiqueta = "unidades",
   totalPeriodo = 0,
+  mostrarTotal = true,
 }) {
+  const [orden, setOrden] = useState("default");
+  const elementosOrdenados = orden === "default"
+    ? elementos
+    : [...elementos].sort((a, b) => {
+      const campo = mostrarTotal ? "total" : "cantidad";
+      return orden === "asc" ? a[campo] - b[campo] : b[campo] - a[campo];
+    });
+
   if (!elementos.length)
     return (
       <p className="mt-4 text-sm text-slate-500">
@@ -1002,8 +1114,12 @@ function ListaAgrupacion({
     );
 
   return (
-    <ul className="mt-3 divide-y divide-slate-100">
-      {elementos.map((item) => (
+    <>
+      <button className="mt-3 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600" onClick={() => setOrden(orden === "default" ? "asc" : orden === "asc" ? "desc" : "default")} type="button">
+        Orden: {orden === "default" ? "predeterminado" : orden === "asc" ? "menor a mayor" : "mayor a menor"}
+      </button>
+      <ul className="mt-3 divide-y divide-slate-100">
+      {elementosOrdenados.map((item) => (
         <li
           className="flex items-center justify-between gap-3 py-3 text-sm"
           key={item.nombre}
@@ -1017,12 +1133,13 @@ function ListaAgrupacion({
                 : ""}
             </span>
           </span>
-          <strong className="font-semibold text-slate-900">
+          {mostrarTotal && <strong className="font-semibold text-slate-900">
             {formatearPrecio(item.total)}
-          </strong>
+          </strong>}
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }
 
@@ -1039,7 +1156,7 @@ function ListaVentas({ ventas }) {
                 </span>
                 <span className="mt-1 block text-xs text-slate-500">
                   {venta.metodoPago} ·{" "}
-                  {venta.estado === "pendiente" ? "Pendiente" : "Sincronizada"}{" "}
+                  {venta.estado === "pendiente" ? "Pendiente de sincronizar" : "Sincronizada"}{" "}
                   ·{" "}
                   {venta.items.reduce(
                     (total, item) => total + item.cantidad,
@@ -1253,6 +1370,7 @@ function AdministracionDemo({
       nombre: producto.configuracionVenta ? producto.nombre.replace(/^Cucurucho\s*/i, "") : producto.nombre,
       categoria: producto.configuracionVenta || producto.esSabor ? "helados" : producto.categoria,
       precio: String(producto.precio),
+      costo: producto.costo === undefined ? "" : String(producto.costo),
       detalle: producto.detalle ?? "",
       imagenUrl: producto.imagenUrl ?? "",
       esSabor: producto.esSabor ?? false,
@@ -1283,7 +1401,8 @@ function AdministracionDemo({
       : Number(formularioProducto.precio);
     const imagenUrl = formularioProducto.imagenUrl.trim();
 
-    if (!nombre || !Number.isFinite(precio) || precio <= 0) {
+    const costo = formularioProducto.costo === "" ? undefined : Number(formularioProducto.costo);
+    if (!nombre || !Number.isFinite(precio) || precio <= 0 || (costo !== undefined && (!Number.isFinite(costo) || costo < 0))) {
       setErrorProducto("Ingresa un nombre y un precio mayor que cero.");
       return;
     }
@@ -1305,6 +1424,7 @@ function AdministracionDemo({
       nombre: formularioProducto.tipoCucurucho ? `Cucurucho ${nombre}` : nombre,
       categoria: formularioProducto.tipoCucurucho || formularioProducto.esSabor ? "helados" : formularioProducto.categoria,
       precio,
+      costo,
       detalle: formularioProducto.detalle.trim(),
       imagenUrl,
       esSabor: formularioProducto.esSabor,
@@ -1490,6 +1610,11 @@ function AdministracionDemo({
                 value={formularioProducto.precio}
               />
             </label>}
+            <label className="text-sm font-medium text-slate-700" htmlFor="demo-product-cost">
+              {formularioProducto.esSabor ? "Costo por porción" : formularioProducto.tipoCucurucho ? "Costo base del cucurucho" : "Costo unitario"}
+              <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-product-cost" min="0" onChange={(event) => setFormularioProducto({ ...formularioProducto, costo: event.target.value })} placeholder="Opcional" step="0.01" type="number" value={formularioProducto.costo} />
+              <span className="mt-1 block text-xs font-normal text-slate-500">Sirve para estimar la ganancia bruta. En sabores, usa el costo de una bocha.</span>
+            </label>
             {(formularioProducto.esSabor || (!formularioProducto.configurarSabores && !formularioProducto.tipoCucurucho)) && (
               <label className="text-sm font-medium text-slate-700" htmlFor="demo-flavor-minimum">
                 {formularioProducto.esSabor ? "Stock mínimo requerido (porciones)" : "Stock mínimo requerido (unidades)"}
