@@ -1,7 +1,9 @@
 ﻿import { useEffect, useState } from "react";
-import { categorias, formatearPrecio } from "../ventas/data/productos.js";
+import { formatearPrecio } from "../ventas/data/productos.js";
 import { useVentasStore } from "../ventas/store/useVentasStore.js";
 import { actualizarProductoApi } from "../administracion/services/productosApi.js";
+import { listarCategoriasProductos } from "../administracion/services/categoriasCatalogo.js";
+import { useAuthStore } from "../../stores/useAuthStore.js";
 import {
   listarMovimientosInventarioApi,
   normalizarMovimientoEntrada,
@@ -42,6 +44,8 @@ const estadosStock = [
 ];
 
 function InventarioPage() {
+  const usuarioActual = useAuthStore((state) => state.usuario);
+  const esAdministrador = usuarioActual?.role === "Administrador";
   const productos = useVentasStore((state) => state.productos);
   const inicializado = useVentasStore((state) => state.inicializado);
   const errorAlmacenamiento = useVentasStore(
@@ -65,9 +69,15 @@ function InventarioPage() {
   const [mensaje, setMensaje] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [minimosEditados, setMinimosEditados] = useState({});
-  const [guardandoMinimo, setGuardandoMinimo] = useState("");
+  const [guardandoMinimos, setGuardandoMinimos] = useState(false);
+  const [modoInventario, setModoInventario] = useState("");
+  const [cantidadesCarga, setCantidadesCarga] = useState({});
+  const [detallesCarga, setDetallesCarga] = useState({});
+  const [clavesCarga, setClavesCarga] = useState({});
+  const [guardandoCargas, setGuardandoCargas] = useState(false);
   const [categoriaActiva, setCategoriaActiva] = useState("todos");
   const [estadoActivo, setEstadoActivo] = useState("todos");
+  const [soloReposiciones, setSoloReposiciones] = useState(false);
   const [orden, setOrden] = useState({ campo: null, direccion: "asc" });
   const productosFiltrados = productosInventariables
     .filter((producto) => categoriaActiva === "todos" || producto.categoria === categoriaActiva)
@@ -104,6 +114,9 @@ function InventarioPage() {
   );
   const historialCargando =
     cargandoMovimientos || (!productoSeleccionado && Boolean(idProductoActivo));
+  const movimientosVisibles = soloReposiciones
+    ? movimientos.filter((movimiento) => movimiento.tipo === "receipt")
+    : movimientos;
 
   useEffect(() => {
     let activo = true;
@@ -167,24 +180,114 @@ function InventarioPage() {
     }
   }
 
-  async function guardarMinimo(producto) {
-    const valor = Number(minimosEditados[producto.id] ?? producto.stockMinimo ?? 0);
-    if (!Number.isInteger(valor) || valor < 0) {
-      setError("El stock mínimo debe ser un entero igual o mayor que cero.");
+  async function guardarMinimos() {
+    const cambios = productosInventariables.filter((producto) =>
+      String(minimosEditados[producto.id] ?? producto.stockMinimo ?? 0) !== String(producto.stockMinimo ?? 0),
+    );
+    const invalidos = cambios.filter((producto) => {
+      const minimo = Number(minimosEditados[producto.id]);
+      return !Number.isInteger(minimo) || minimo < 0;
+    });
+    if (invalidos.length) {
+      setError(`Revisa el mínimo de ${invalidos.map(({ nombre }) => nombre).join(", ")}. Usa enteros iguales o mayores que cero.`);
       return;
     }
-    setGuardandoMinimo(producto.id);
-    setError("");
-    try {
-      const actualizado = await actualizarProductoApi({ ...producto, stockMinimo: valor });
-      await actualizarProductoCatalogo(producto.id, { stockMinimo: actualizado.stockMinimo ?? valor });
-      setMinimosEditados((actuales) => { const siguientes = { ...actuales }; delete siguientes[producto.id]; return siguientes; });
-      setMensaje(`Stock mínimo de ${producto.nombre} actualizado a ${valor}.`);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No se pudo actualizar el stock mínimo.");
-    } finally {
-      setGuardandoMinimo("");
+    if (!cambios.length) {
+      setModoInventario("");
+      return;
     }
+    setGuardandoMinimos(true);
+    setError("");
+    const fallidos = [];
+    let actualizados = 0;
+    for (const producto of cambios) {
+      const valor = Number(minimosEditados[producto.id]);
+      try {
+        const actualizado = await actualizarProductoApi({ ...producto, stockMinimo: valor });
+        await actualizarProductoCatalogo(producto.id, { stockMinimo: actualizado.stockMinimo ?? valor });
+        actualizados += 1;
+      } catch (saveError) {
+        fallidos.push(`${producto.nombre}: ${saveError instanceof Error ? saveError.message : "no se pudo guardar"}`);
+      }
+    }
+    if (fallidos.length) {
+      setError(`Se guardaron ${actualizados} mínimos. ${fallidos.join("; ")}`);
+    } else {
+      setMensaje(`Se actualizaron ${actualizados} mínimos de stock.`);
+      setModoInventario("");
+    }
+    setGuardandoMinimos(false);
+  }
+
+  async function guardarCargas() {
+    const conCantidad = productosInventariables.filter((producto) => cantidadesCarga[producto.id] !== undefined && cantidadesCarga[producto.id] !== "");
+    if (!conCantidad.length) {
+      setError("Ingresa la cantidad de stock para al menos un producto.");
+      return;
+    }
+    const cargas = [];
+    try {
+      for (const producto of conCantidad) {
+        cargas.push({
+          producto,
+          payload: normalizarMovimientoEntrada({
+            type: Number.isInteger(producto.stockDisponible) ? "receipt" : "opening",
+            quantityDelta: Number(cantidadesCarga[producto.id]),
+            reason: detallesCarga[producto.id]?.trim() || "Carga de stock",
+          }),
+        });
+      }
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : "Revisa las cantidades y detalles de las cargas.");
+      return;
+    }
+
+    setGuardandoCargas(true);
+    setError("");
+    const registradas = [];
+    const fallidas = [];
+    const clavesUsadas = { ...clavesCarga };
+    for (const { producto, payload } of cargas) {
+      const clave = clavesUsadas[producto.id] || globalThis.crypto.randomUUID();
+      clavesUsadas[producto.id] = clave;
+      try {
+        const registrado = await registrarMovimientoInventarioApi(producto.id, payload, clave);
+        await actualizarProductoCatalogo(producto.id, { stockDisponible: registrado.saldoPosterior });
+        registradas.push({
+          producto,
+          movimiento: {
+            ...registrado,
+            usuario: registrado.usuario || usuarioActual?.name || usuarioActual?.nombre || usuarioActual?.email || "Empleado",
+          },
+        });
+        delete clavesUsadas[producto.id];
+      } catch (saveError) {
+        fallidas.push(`${producto.nombre}: ${saveError instanceof Error ? saveError.message : "no se pudo registrar"}`);
+      }
+    }
+    setClavesCarga(clavesUsadas);
+    if (registradas.length) {
+      const productoHistorial = registradas[0].producto;
+      setProductoSeleccionado(productoHistorial.id);
+      setMovimientos(registradas.filter(({ producto }) => producto.id === productoHistorial.id).map(({ movimiento }) => movimiento));
+      setCantidadesCarga((actuales) => {
+        const siguientes = { ...actuales };
+        registradas.forEach(({ producto }) => { delete siguientes[producto.id]; });
+        return siguientes;
+      });
+      setDetallesCarga((actuales) => {
+        const siguientes = { ...actuales };
+        registradas.forEach(({ producto }) => { delete siguientes[producto.id]; });
+        return siguientes;
+      });
+      setMensaje(`Se registraron ${registradas.length} cargas de stock.`);
+    }
+    if (fallidas.length) {
+      setError(`No se pudieron registrar todas las cargas: ${fallidas.join("; ")}`);
+    } else {
+      setModoInventario("");
+    }
+    setGuardandoCargas(false);
   }
 
   async function guardarMovimiento(event) {
@@ -257,14 +360,11 @@ function InventarioPage() {
             Existencias de productos y sus movimientos registrados.
           </p>
         </div>
-        <button
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          disabled={!productoActual}
-          onClick={() => productoActual && abrirMovimiento(productoActual)}
-          type="button"
-        >
-          Registrar movimiento
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {esAdministrador && <button className={`rounded-lg border px-4 py-2.5 text-sm font-semibold ${modoInventario === "minimos" ? "border-emerald-800 bg-emerald-800 text-white" : "border-slate-300 bg-white text-slate-700"}`} disabled={guardandoMinimos || guardandoCargas} onClick={() => { if (modoInventario === "minimos") { setModoInventario(""); setError(""); } else { setModoInventario("minimos"); setError(""); setMinimosEditados(Object.fromEntries(productosInventariables.map((producto) => [producto.id, String(producto.stockMinimo ?? 0)]))); } }} type="button">Editar mínimos</button>}
+          <button className={`rounded-lg border px-4 py-2.5 text-sm font-semibold ${modoInventario === "carga" ? "border-emerald-800 bg-emerald-800 text-white" : "border-emerald-800 bg-white text-emerald-800"}`} disabled={guardandoMinimos || guardandoCargas} onClick={() => { if (modoInventario === "carga") { setModoInventario(""); setError(""); } else { setModoInventario("carga"); setError(""); setCantidadesCarga({}); setDetallesCarga({}); setClavesCarga({}); } }} type="button">Cargar stock</button>
+          {esAdministrador && <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={!productoActual || modoInventario !== ""} onClick={() => productoActual && abrirMovimiento(productoActual)} type="button">Otros movimientos</button>}
+        </div>
       </header>
 
       {(errorAlmacenamiento || errorCatalogoApi) && (
@@ -274,6 +374,9 @@ function InventarioPage() {
         >
           {errorAlmacenamiento || errorCatalogoApi}
         </p>
+      )}
+      {error && !modalAbierto && (
+        <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p>
       )}
       {mensaje && (
         <p
@@ -294,7 +397,7 @@ function InventarioPage() {
           </span>
         </div>
         <div aria-label="Filtrar inventario por categoría" className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-3" role="group">
-          {[{ id: "todos", nombre: "Todas" }, ...categorias.filter(({ id }) => id !== "todos" && productosInventariables.some((producto) => producto.categoria === id))]
+          {[{ id: "todos", nombre: "Todas" }, ...listarCategoriasProductos()]
             .map((categoria) => (
               <button
                 aria-pressed={categoriaActiva === categoria.id}
@@ -337,12 +440,11 @@ function InventarioPage() {
                   <th className="px-4 py-3 font-semibold">
                     Precio de referencia
                   </th>
-                  <th className="px-4 py-3 font-semibold">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {productosFiltrados.length === 0 ? (
-                  <tr><td className="px-4 py-6 text-center text-slate-500" colSpan={6}>No hay productos en esta categoría.</td></tr>
+                  <tr><td className="px-4 py-6 text-center text-slate-500" colSpan={5}>No hay productos en esta categoría.</td></tr>
                 ) : productosFiltrados.map((producto) => (
                   <tr
                     className={
@@ -353,7 +455,7 @@ function InventarioPage() {
                     key={producto.id}
                   >
                     <td className="px-4 py-3 font-medium text-slate-900">
-                      {producto.nombre}
+                      <button className="text-left" onClick={() => { setMovimientos([]); setErrorHistorial(""); setCargandoMovimientos(true); setProductoSeleccionado(producto.id); }} type="button" title="Ver historial de inventario">{producto.nombre}</button>
                     </td>
                     <td className="px-4 py-3">
                       {Number.isInteger(producto.stockDisponible) ? (
@@ -374,12 +476,17 @@ function InventarioPage() {
                           Sin conteo inicial
                         </span>
                       )}
+                      {modoInventario === "carga" && <div className="mt-2 grid w-full min-w-44 gap-2">
+                        <label className="text-xs font-medium text-slate-600">Cantidad ({producto.esSabor ? "porciones" : "unidades"})
+                          <input aria-label={`Cantidad a cargar de ${producto.nombre}`} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" min="1" onChange={(event) => { setCantidadesCarga((actuales) => ({ ...actuales, [producto.id]: event.target.value })); setClavesCarga((actuales) => { const siguientes = { ...actuales }; delete siguientes[producto.id]; return siguientes; }); }} step="1" type="number" value={cantidadesCarga[producto.id] ?? ""} />
+                        </label>
+                        <label className="text-xs font-medium text-slate-600">Detalle (opcional)
+                          <input aria-label={`Detalle de carga de ${producto.nombre}`} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" maxLength="240" onChange={(event) => { setDetallesCarga((actuales) => ({ ...actuales, [producto.id]: event.target.value })); setClavesCarga((actuales) => { const siguientes = { ...actuales }; delete siguientes[producto.id]; return siguientes; }); }} placeholder="Ej.: Reposición proveedor" value={detallesCarga[producto.id] ?? ""} />
+                        </label>
+                      </div>}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <input aria-label={`Stock mínimo de ${producto.nombre}`} className="w-20 rounded-md border border-slate-300 px-2 py-1.5" min="0" onChange={(event) => setMinimosEditados((actuales) => ({ ...actuales, [producto.id]: event.target.value }))} type="number" value={minimosEditados[producto.id] ?? producto.stockMinimo ?? 0} />
-                        <button className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50" disabled={guardandoMinimo === producto.id || String(minimosEditados[producto.id] ?? producto.stockMinimo ?? 0) === String(producto.stockMinimo ?? 0)} onClick={() => guardarMinimo(producto)} type="button">{guardandoMinimo === producto.id ? "Guardando" : "Guardar"}</button>
-                      </div>
+                      {modoInventario === "minimos" ? <input aria-label={`Stock mínimo de ${producto.nombre}`} className="w-24 rounded-md border border-slate-300 px-2 py-1.5" min="0" onChange={(event) => setMinimosEditados((actuales) => ({ ...actuales, [producto.id]: event.target.value }))} type="number" value={minimosEditados[producto.id] ?? producto.stockMinimo ?? 0} /> : producto.stockMinimo ?? 0}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`font-semibold ${{ "agotado": "text-red-700", "reponer": "text-red-700", "por-agotarse": "text-amber-800", "sin-conteo": "text-slate-500", "en-stock": "text-emerald-700" }[obtenerEstadoStock(producto)]}`} role="status">
@@ -389,36 +496,6 @@ function InventarioPage() {
                     <td className="px-4 py-3 text-slate-600">
                       {formatearPrecio(producto.precio)}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50"
-                          onClick={() => {
-                            setMovimientos([]);
-                            setErrorHistorial("");
-                            setCargandoMovimientos(true);
-                            setProductoSeleccionado(producto.id);
-                          }}
-                          type="button"
-                        >
-                          Historial
-                        </button>
-                        <button
-                          className="rounded-md border border-emerald-800 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50"
-                          onClick={() =>
-                            abrirMovimiento(
-                              producto,
-                              producto.stockDisponible === undefined
-                                ? "opening"
-                                : "receipt",
-                            )
-                          }
-                          type="button"
-                        >
-                          Cargar stock
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -426,6 +503,19 @@ function InventarioPage() {
           </div>
         )}
       </div>
+
+      {modoInventario === "minimos" && (
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" disabled={guardandoMinimos} onClick={() => { setModoInventario(""); setError(""); }} type="button">Cancelar</button>
+          <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={guardandoMinimos} onClick={guardarMinimos} type="button">{guardandoMinimos ? "Guardando..." : "Confirmar mínimos"}</button>
+        </div>
+      )}
+      {modoInventario === "carga" && (
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" disabled={guardandoCargas} onClick={() => { setModoInventario(""); setError(""); }} type="button">Cancelar</button>
+          <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={guardandoCargas} onClick={guardarCargas} type="button">{guardandoCargas ? "Registrando cargas..." : "Confirmar cargas"}</button>
+        </div>
+      )}
 
       {productoActual && (
         <section aria-labelledby="historial-heading" className="mt-6">
@@ -435,7 +525,7 @@ function InventarioPage() {
                 className="text-lg font-semibold text-slate-900"
                 id="historial-heading"
               >
-                Movimientos: {productoActual.nombre}
+                Historial de inventario: {productoActual.nombre}
               </h2>
               <p className="mt-1 text-sm text-slate-600">
                 Cada ajuste conserva usuario, fecha y saldo posterior.
@@ -449,6 +539,14 @@ function InventarioPage() {
             >
               {historialCargando ? "Actualizando..." : "Actualizar historial"}
             </button>
+            <button
+              aria-pressed={soloReposiciones}
+              className="rounded-md border border-emerald-800 bg-white px-3 py-2 text-sm font-medium text-emerald-800 aria-pressed:bg-emerald-800 aria-pressed:text-white"
+              onClick={() => setSoloReposiciones((actual) => !actual)}
+              type="button"
+            >
+              {soloReposiciones ? "Ver todos los movimientos" : "Ver solo reposiciones"}
+            </button>
           </div>
           {errorHistorial ? (
             <p
@@ -457,15 +555,17 @@ function InventarioPage() {
             >
               No se pudo cargar el historial: {errorHistorial}
             </p>
-          ) : movimientos.length === 0 ? (
+          ) : movimientosVisibles.length === 0 ? (
             <p className="mt-3 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
               {historialCargando
                 ? "Cargando movimientos..."
-                : "No hay movimientos para este sabor."}
+                : soloReposiciones
+                  ? "No hay reposiciones registradas para este producto."
+                  : "No hay movimientos para este producto."}
             </p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-              {movimientos.map((movimiento) => (
+              {movimientosVisibles.map((movimiento) => (
                 <li
                   className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
                   key={movimiento.id}

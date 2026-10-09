@@ -2,7 +2,7 @@ import { ventasDatabase } from '../../ventas/data/ventasDatabase.js'
 
 export const PERIODOS_REPORTE = {
   hoy: { etiqueta: 'Hoy', dias: 1 },
-  noventaDias: { etiqueta: 'Últimos 90 días', dias: 90 },
+  ayer: { etiqueta: 'Ayer', dias: 1, desplazamiento: -1 },
   sieteDias: { etiqueta: 'Últimos 7 días', dias: 7 },
   treintaDias: { etiqueta: 'Últimos 30 días', dias: 30 }
 }
@@ -55,8 +55,6 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
   let unidadesVendidas = 0
   let ventasPendientes = 0
   let montoPendiente = 0
-  let costoMercaderia = 0
-  let unidadesSinCosto = 0
 
   for (const venta of ventasPeriodo) {
     const fecha = new Date(venta.creadaEn)
@@ -87,11 +85,6 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
       }
 
       unidadesVendidas += item.cantidad
-      if (Number.isFinite(item.costoUnitario) && item.costoUnitario >= 0) {
-        costoMercaderia += item.costoUnitario * item.cantidad
-      } else {
-        unidadesSinCosto += item.cantidad
-      }
       sumarAgrupado(porCategoria, item.categoria, item.totalLinea, item.cantidad)
       totalesCategoriasVenta.set(item.categoria, (totalesCategoriasVenta.get(item.categoria) ?? 0) + item.totalLinea)
       sumarAgrupado(porProducto, item.nombre, item.totalLinea, item.cantidad)
@@ -129,12 +122,6 @@ export function calcularReporteVentas(ventas, fechaActual = new Date(), cantidad
     promedioPorVenta: ventasPeriodo.length ? totalFacturado / ventasPeriodo.length : 0,
     ventasPendientes,
     montoPendiente,
-    costoMercaderia: unidadesSinCosto === 0 ? costoMercaderia : null,
-    gananciaBruta: unidadesSinCosto === 0 ? totalFacturado - costoMercaderia : null,
-    margenBrutoPorcentaje: unidadesSinCosto === 0 && totalFacturado > 0
-      ? ((totalFacturado - costoMercaderia) / totalFacturado) * 100
-      : null,
-    unidadesSinCosto,
     porMetodo: ordenarPorTotal(porMetodo),
     porMetodoPorCategoria: Object.fromEntries(
       [...porMetodoPorCategoria].map(([categoria, metodos]) => [categoria, ordenarPorTotal(metodos)]),

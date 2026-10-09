@@ -1,1 +1,36 @@
 @import "tailwindcss";
+
+:root {
+  font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --pos-brand: #047857;
+  --pos-brand-hover: #065f46;
+  --pos-brand-soft: #ecfdf5;
+  --pos-text: #0f172a;
+  --pos-muted: #64748b;
+  --pos-border: #e2e8f0;
+  --pos-surface: #ffffff;
+  --pos-danger: #b91c1c;
+  --pos-warning: #b45309;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  color: var(--pos-text);
+  background: #f8fafc;
+  font-family: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

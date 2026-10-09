@@ -16,7 +16,10 @@ export async function crearUsuarioApi(usuario) {
   const response = await apiRequest('/users', {
     method: 'POST',
     body: {
-      name: usuario.name.trim(),
+      name: [usuario.nombre, usuario.apellido].map((parte) => parte.trim()).filter(Boolean).join(" "),
+      firstName: usuario.nombre.trim(),
+      lastName: usuario.apellido.trim(),
+      dni: usuario.dni.trim(),
       email: usuario.email.trim(),
       password: usuario.password,
       role: usuario.role
@@ -45,6 +48,9 @@ export function normalizarUsuario(usuario) {
     id: usuario.id,
     name: usuario.name,
     email: usuario.email,
-    role: usuario.role
+    role: usuario.role,
+    ...(typeof usuario.firstName === "string" ? { nombre: usuario.firstName } : {}),
+    ...(typeof usuario.lastName === "string" ? { apellido: usuario.lastName } : {}),
+    ...(typeof usuario.dni === "string" ? { dni: usuario.dni } : {}),
   }
 }

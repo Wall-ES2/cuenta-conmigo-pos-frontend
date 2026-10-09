@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatearPrecio } from "../data/productos.js";
+import { listarCategoriasSabores } from "../../administracion/services/categoriasCatalogo.js";
 import {
   validarDisponibilidadSaboresEnCarrito,
   validarSeleccionSabores,
@@ -21,11 +22,24 @@ function ConfiguradorSaboresModal({
     Array(cantidadBase).fill(""),
   );
   const [bochaActiva, setBochaActiva] = useState(0);
+  const [categoriaActiva, setCategoriaActiva] = useState("todas");
   const [error, setError] = useState("");
 
   const sabores = saboresDisponibles
     .filter((sabor) => sabor.esSabor && sabor.id !== producto.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const categoriasSabores = listarCategoriasSabores();
+  const gruposSabores = [
+    ...categoriasSabores,
+    ...(sabores.some((sabor) => !sabor.categoriaSabor)
+      ? [{ id: "sin-categoria", nombre: "Sin categoría" }]
+      : []),
+  ];
+  const saboresVisibles = opcionesDisponibles(bochaActiva).filter(
+    (sabor) =>
+      categoriaActiva === "todas" ||
+      (sabor.categoriaSabor || "sin-categoria") === categoriaActiva,
+  );
   const haySaboresConConteo = sabores.some((sabor) =>
     Number.isInteger(sabor.stockDisponible),
   );
@@ -133,10 +147,38 @@ function ConfiguradorSaboresModal({
                 </button>
               ))}
             </div>
+            <nav aria-label="Categorías de sabores" className="flex flex-wrap gap-2">
+              <button
+                aria-pressed={categoriaActiva === "todas"}
+                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium aria-pressed:bg-emerald-800 aria-pressed:text-white"
+                onClick={() => setCategoriaActiva("todas")}
+                type="button"
+              >
+                Todos ({sabores.length})
+              </button>
+              {gruposSabores.map((categoria) => {
+                const cantidad = sabores.filter(
+                  (sabor) =>
+                    (sabor.categoriaSabor || "sin-categoria") === categoria.id,
+                ).length;
+                if (!cantidad) return null;
+                return (
+                  <button
+                    aria-pressed={categoriaActiva === categoria.id}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium aria-pressed:bg-emerald-800 aria-pressed:text-white"
+                    key={categoria.id}
+                    onClick={() => setCategoriaActiva(categoria.id)}
+                    type="button"
+                  >
+                    {categoria.nombre} ({cantidad})
+                  </button>
+                );
+              })}
+            </nav>
             <fieldset className="flavor-picker">
               <legend>Sabores disponibles para la bocha {bochaActiva + 1}</legend>
               <div className="flavor-picker-grid">
-                {opcionesDisponibles(bochaActiva).map((sabor) => (
+                {saboresVisibles.map((sabor) => (
                   <button aria-pressed={seleccion[bochaActiva] === sabor.id} className="flavor-choice" key={sabor.id} onClick={() => { setSeleccion((actual) => actual.map((id, index) => index === bochaActiva ? sabor.id : id)); setError(""); }} type="button">
                     <strong>{sabor.nombre}</strong>
                     <small>{Number.isInteger(sabor.stockDisponible) ? `${sabor.stockDisponible} porciones` : "Sin conteo"}</small>

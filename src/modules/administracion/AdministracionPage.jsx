@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { categorias, formatearPrecio } from "../ventas/data/productos.js";
+import { formatearPrecio } from "../ventas/data/productos.js";
 import {
   actualizarProductoApi,
   crearProductoApi,
@@ -13,14 +13,19 @@ import {
 import { useVentasStore } from "../ventas/store/useVentasStore";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { normalizarConfiguracionVenta } from "../ventas/domain/configuracionSabores.js";
+import {
+  crearCategoriaCatalogo,
+  eliminarCategoriasCatalogo,
+  listarCategoriasEliminables,
+  listarCategoriasProductos,
+  listarCategoriasSabores,
+} from "./services/categoriasCatalogo.js";
 
-const categoriasDisponibles = categorias.filter(({ id }) => id !== "todos");
 const formularioVacio = {
   nombre: "",
   tipoCucurucho: false,
   categoria: "helados",
   precio: "",
-  costo: "",
   detalle: "",
   imagenUrl: "",
   esSabor: false,
@@ -28,10 +33,13 @@ const formularioVacio = {
   cantidadSabores: "2",
   permitirRepetidos: true,
   stockMinimo: "3",
+  categoriaSabor: "",
 };
 const formularioUsuarioVacio = {
-  name: "",
+  nombre: "",
+  apellido: "",
   email: "",
+  dni: "",
   password: "",
   role: "Cajero",
 };
@@ -39,9 +47,6 @@ const formularioUsuarioVacio = {
 function AdministracionPage() {
   const productos = useVentasStore((state) => state.productos);
   const catalogoError = useVentasStore((state) => state.errorCatalogoApi);
-  const cargarCatalogoDesdeApi = useVentasStore(
-    (state) => state.cargarCatalogoDesdeApi,
-  );
   const agregarProductoCatalogo = useVentasStore(
     (state) => state.agregarProductoCatalogo,
   );
@@ -53,6 +58,23 @@ function AdministracionPage() {
   );
   const usuarioActual = useAuthStore((state) => state.usuario);
   const [modalProductoAbierto, setModalProductoAbierto] = useState(false);
+  const [modalCategoriaAbierto, setModalCategoriaAbierto] = useState(false);
+  const [modalBorrarCategoriasAbierto, setModalBorrarCategoriasAbierto] = useState(false);
+  const [tipoCategoriaNueva, setTipoCategoriaNueva] = useState("productos");
+  const [tipoCategoriaEliminar, setTipoCategoriaEliminar] = useState("productos");
+  const [categoriasEliminarSeleccionadas, setCategoriasEliminarSeleccionadas] = useState([]);
+  const [nombreCategoriaNueva, setNombreCategoriaNueva] = useState("");
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState(listarCategoriasProductos);
+  const [categoriasSabores, setCategoriasSabores] = useState(listarCategoriasSabores);
+  const [categoriasEliminables, setCategoriasEliminables] = useState(() => ({
+    productos: listarCategoriasEliminables("productos"),
+    sabores: listarCategoriasEliminables("sabores"),
+  }));
+  const [altaCategoriaSabor, setAltaCategoriaSabor] = useState(false);
+  const [nombreCategoriaSabor, setNombreCategoriaSabor] = useState("");
+  const [errorCategoriaSabor, setErrorCategoriaSabor] = useState("");
+  const [filtroCategoriaCatalogo, setFiltroCategoriaCatalogo] = useState("todas");
+  const [busquedaCatalogo, setBusquedaCatalogo] = useState("");
   const [productoEditando, setProductoEditando] = useState("");
   const [formulario, setFormulario] = useState(formularioVacio);
   const [guardando, setGuardando] = useState(false);
@@ -66,9 +88,16 @@ function AdministracionPage() {
   const [errorUsuarios, setErrorUsuarios] = useState("");
   const [mensajeUsuarios, setMensajeUsuarios] = useState("");
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(false);
+  const productosFiltrados = productos.filter((producto) => {
+    const coincideCategoria =
+      filtroCategoriaCatalogo === "todas" ||
+      producto.categoria === filtroCategoriaCatalogo;
+    const texto = (producto.nombre + " " + (producto.detalle ?? "")).toLocaleLowerCase("es");
+    return coincideCategoria && texto.includes(busquedaCatalogo.trim().toLocaleLowerCase("es"));
+  });
   const productosVisibles = mostrarTodosProductos
-    ? productos
-    : productos.slice(0, 6);
+    ? productosFiltrados
+    : productosFiltrados.slice(0, 6);
 
   useEffect(() => {
     if (!modalProductoAbierto) return undefined;
@@ -114,12 +143,55 @@ function AdministracionPage() {
     };
   }, []);
 
-  async function recargarCatalogo() {
+  function guardarCategoria(event) {
+    event.preventDefault();
     setError("");
     try {
-      await cargarCatalogoDesdeApi();
-    } catch {
-      // El store conserva el error para mostrarlo junto al catálogo.
+      const creada = crearCategoriaCatalogo(nombreCategoriaNueva, tipoCategoriaNueva);
+      if (tipoCategoriaNueva === "sabores") {
+        setCategoriasSabores((actuales) => [...actuales, creada]);
+        setCategoriasEliminables((actuales) => ({ ...actuales, sabores: [...actuales.sabores, creada] }));
+      } else {
+        setCategoriasDisponibles((actuales) => [...actuales, creada]);
+        setCategoriasEliminables((actuales) => ({ ...actuales, productos: [...actuales.productos, creada] }));
+      }
+      setNombreCategoriaNueva("");
+      setModalCategoriaAbierto(false);
+    } catch (categoryError) {
+      setError(categoryError instanceof Error ? categoryError.message : "No se pudo guardar la categoría.");
+    }
+  }
+
+  function eliminarCategoriasSeleccionadas() {
+    const esCategoriaSabor = tipoCategoriaEliminar === "sabores";
+    try {
+      eliminarCategoriasCatalogo(categoriasEliminarSeleccionadas, tipoCategoriaEliminar);
+      if (esCategoriaSabor) {
+        setCategoriasSabores((actuales) => actuales.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)));
+        setCategoriasEliminables((actuales) => ({ ...actuales, sabores: actuales.sabores.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)) }));
+      } else {
+        setCategoriasDisponibles((actuales) => actuales.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)));
+        setCategoriasEliminables((actuales) => ({ ...actuales, productos: actuales.productos.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)) }));
+      }
+      setCategoriasEliminarSeleccionadas([]);
+      setError("");
+      setModalBorrarCategoriasAbierto(false);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar la categoría.");
+    }
+  }
+
+  function agregarCategoriaSaborDesdeProducto() {
+    setErrorCategoriaSabor("");
+    try {
+      const creada = crearCategoriaCatalogo(nombreCategoriaSabor, "sabores");
+      setCategoriasSabores((actuales) => [...actuales, creada]);
+      setCategoriasEliminables((actuales) => ({ ...actuales, sabores: [...actuales.sabores, creada] }));
+      setFormulario((actual) => ({ ...actual, categoriaSabor: creada.id }));
+      setNombreCategoriaSabor("");
+      setAltaCategoriaSabor(false);
+    } catch (categoryError) {
+      setErrorCategoriaSabor(categoryError instanceof Error ? categoryError.message : "No se pudo crear la categoría.");
     }
   }
 
@@ -133,7 +205,6 @@ function AdministracionPage() {
       tipoCucurucho: Boolean(producto.configuracionVenta),
       categoria: producto.configuracionVenta || producto.esSabor ? "helados" : producto.categoria,
       precio: String(producto.precio),
-      costo: producto.costo === undefined ? "" : String(producto.costo),
       detalle: producto.detalle ?? "",
       imagenUrl: producto.imagenUrl ?? "",
       esSabor: producto.esSabor ?? false,
@@ -143,6 +214,7 @@ function AdministracionPage() {
       ),
       permitirRepetidos: producto.configuracionVenta?.permitirRepetidos ?? true,
       stockMinimo: String(producto.stockMinimo ?? 3),
+      categoriaSabor: producto.categoriaSabor ?? "",
     });
     setError("");
   }
@@ -159,6 +231,10 @@ function AdministracionPage() {
     setError("");
 
     let configuracionVenta;
+    if (formulario.esSabor && !formulario.categoriaSabor) {
+      setError("Selecciona o crea una categoría para este insumo de sabor.");
+      return;
+    }
     try {
       configuracionVenta = (formulario.tipoCucurucho || formulario.configurarSabores)
         ? normalizarConfiguracionVenta({
@@ -200,9 +276,6 @@ function AdministracionPage() {
           "Primero registra al menos un producto como sabor de helado.",
         );
       }
-      if (formulario.costo !== "" && (!Number.isFinite(Number(formulario.costo)) || Number(formulario.costo) < 0)) {
-        throw new Error("El costo unitario debe ser un número igual o mayor que cero.");
-      }
     } catch (validationError) {
       setError(
         validationError instanceof Error
@@ -223,7 +296,6 @@ function AdministracionPage() {
       precio: formulario.esSabor
         ? Number(formulario.precio) || 1
         : Number(formulario.precio),
-      costo: formulario.costo === "" ? undefined : Number(formulario.costo),
       detalle: formulario.detalle.trim(),
       imagenUrl: formulario.imagenUrl.trim(),
       esSabor: formulario.tipoCucurucho ? false : formulario.esSabor,
@@ -232,6 +304,7 @@ function AdministracionPage() {
       stockMinimo: (!configuracionVenta || formulario.esSabor)
         ? Number(formulario.stockMinimo)
         : undefined,
+      categoriaSabor: formulario.esSabor ? formulario.categoriaSabor : "",
     };
 
     try {
@@ -247,9 +320,9 @@ function AdministracionPage() {
         const creado = await crearProductoApi(producto);
         await agregarProductoCatalogo({
           ...creado,
+          categoriaSabor: producto.categoriaSabor,
           controlaStock: producto.controlaStock,
           stockMinimo: creado.stockMinimo ?? producto.stockMinimo,
-          costo: creado.costo ?? producto.costo,
         });
       }
 
@@ -307,7 +380,12 @@ function AdministracionPage() {
 
     try {
       const creado = await crearUsuarioApi(formularioUsuario);
-      setUsuarios((actuales) => [...actuales, creado]);
+      setUsuarios((actuales) => [...actuales, {
+        ...creado,
+        nombre: creado.nombre ?? formularioUsuario.nombre,
+        apellido: creado.apellido ?? formularioUsuario.apellido,
+        dni: creado.dni ?? formularioUsuario.dni,
+      }]);
       setFormularioUsuario(formularioUsuarioVacio);
       setMensajeUsuarios(`Se creó la cuenta de ${creado.name}.`);
     } catch (createError) {
@@ -354,26 +432,96 @@ function AdministracionPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900" onClick={() => { setProductoEditando(""); setFormulario({ ...formularioVacio, esSabor: true, precio: "1" }); setError(""); setModalProductoAbierto(true); }} type="button">Agregar sabor</button>
-          <button className="rounded-lg border border-emerald-800 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50" onClick={() => { setProductoEditando(""); setFormulario({ ...formularioVacio, tipoCucurucho: true, configurarSabores: true, cantidadSabores: "1" }); setError(""); setModalProductoAbierto(true); }} type="button">Agregar tipo de cucurucho</button>
-          <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setProductoEditando(""); setFormulario(formularioVacio); setError(""); setModalProductoAbierto(true); }} type="button">Agregar otro producto</button>
+          <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setError(""); setModalCategoriaAbierto(true); }} type="button">Agregar nueva categoría</button>
+          <button className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" onClick={() => { setError(""); setModalBorrarCategoriasAbierto(true); }} type="button">Borrar categorías</button>
+          <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900" onClick={() => { setProductoEditando(""); setFormulario(formularioVacio); setError(""); setModalProductoAbierto(true); }} type="button">Agregar nuevo producto</button>
         </div>
-        <button
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          onClick={recargarCatalogo}
-          type="button"
-        >
-          Actualizar catálogo
-        </button>
       </div>
 
-      {((error && !modalProductoAbierto) || catalogoError) && (
+      {((error && !modalProductoAbierto && !modalCategoriaAbierto) || catalogoError) && (
         <p
           className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
           role="alert"
         >
           {error || catalogoError}
         </p>
+      )}
+
+      {modalCategoriaAbierto && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+          <form
+            aria-labelledby="categoria-form-title"
+            aria-modal="true"
+            className="grid w-full max-w-md gap-4 rounded-xl bg-white p-6 shadow-xl"
+            onSubmit={guardarCategoria}
+            role="dialog"
+          >
+            <h2 className="text-xl font-semibold text-slate-900" id="categoria-form-title">
+              Agregar nueva categoría
+            </h2>
+            <label className="text-sm font-medium text-slate-700" htmlFor="categoria-tipo">
+              Se usará para
+              <select
+                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                id="categoria-tipo"
+                onChange={(event) => setTipoCategoriaNueva(event.target.value)}
+                value={tipoCategoriaNueva}
+              >
+                <option value="productos">Productos del catálogo</option>
+                <option value="sabores">Agrupar sabores de helado</option>
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700" htmlFor="categoria-nombre">
+              Nombre
+              <input
+                autoFocus
+                className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+                id="categoria-nombre"
+                maxLength={60}
+                minLength={2}
+                onChange={(event) => setNombreCategoriaNueva(event.target.value)}
+                required
+                value={nombreCategoriaNueva}
+              />
+            </label>
+            {tipoCategoriaNueva === "sabores" && (
+              <p className="text-sm text-slate-500">
+                Cada sabor nuevo que crees dentro de esta categoría será una subcategoría seleccionable en ventas.
+              </p>
+            )}
+            {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setModalCategoriaAbierto(false)} type="button">Cancelar</button>
+              <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white" type="submit">Guardar categoría</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {modalBorrarCategoriasAbierto && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+          <div aria-labelledby="borrar-categorias-title" aria-modal="true" className="grid w-full max-w-md gap-4 rounded-xl bg-white p-6 shadow-xl" role="dialog">
+            <h2 className="text-xl font-semibold text-slate-900" id="borrar-categorias-title">Borrar categorías</h2>
+            <label className="text-sm font-medium text-slate-700" htmlFor="tipo-categoria-eliminar">Tipo de categoría
+              <select className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal" id="tipo-categoria-eliminar" onChange={(event) => { setTipoCategoriaEliminar(event.target.value); setCategoriasEliminarSeleccionadas([]); setError(""); }} value={tipoCategoriaEliminar}>
+                <option value="productos">Categorías de productos (Ventas / Inventario)</option>
+                <option value="sabores">Categorías de insumos (sabores)</option>
+              </select>
+            </label>
+            <div className="max-h-72 overflow-auto rounded-lg border border-slate-200 sm:col-span-2">
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th className="w-12 px-3 py-2"><input aria-label="Seleccionar todas las categorías" checked={categoriasEliminables[tipoCategoriaEliminar].length > 0 && categoriasEliminarSeleccionadas.length === categoriasEliminables[tipoCategoriaEliminar].length} onChange={(event) => setCategoriasEliminarSeleccionadas(event.target.checked ? categoriasEliminables[tipoCategoriaEliminar].map(({ id }) => id) : [])} type="checkbox" /></th><th className="px-3 py-2">Categoría</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">{categoriasEliminables[tipoCategoriaEliminar].map((categoria) => <tr key={categoria.id}><td className="px-3 py-2"><input aria-label={`Seleccionar ${categoria.nombre}`} checked={categoriasEliminarSeleccionadas.includes(categoria.id)} onChange={(event) => setCategoriasEliminarSeleccionadas((actuales) => event.target.checked ? [...actuales, categoria.id] : actuales.filter((id) => id !== categoria.id))} type="checkbox" /></td><td className="px-3 py-2">{categoria.nombre}</td></tr>)}{categoriasEliminables[tipoCategoriaEliminar].length === 0 && <tr><td className="px-3 py-4 text-slate-500" colSpan="2">No hay categorías disponibles.</td></tr>}</tbody>
+              </table>
+            </div>
+            {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+            {tipoCategoriaEliminar === "productos" && <p className="text-xs text-slate-500">Los productos existentes se conservan y aparecerán sin categoría; puedes asignarles otra desde su edición.</p>}
+            <div className="flex justify-end gap-2">
+              <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setModalBorrarCategoriasAbierto(false)} type="button">Cancelar</button>
+              <button className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!categoriasEliminarSeleccionadas.length} onClick={eliminarCategoriasSeleccionadas} type="button">Borrar seleccionadas ({categoriasEliminarSeleccionadas.length})</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modalProductoAbierto && (
@@ -412,7 +560,7 @@ function AdministracionPage() {
               className="text-sm font-medium text-slate-700"
               htmlFor="producto-nombre"
             >
-              {formulario.tipoCucurucho ? "Diferenciación" : formulario.esSabor ? "Nombre del sabor" : "Nombre"}
+              {formulario.tipoCucurucho ? "Diferenciación" : formulario.esSabor ? "Nombre del sabor final" : "Nombre"}
               <input
                 className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
                 id="producto-nombre"
@@ -447,6 +595,7 @@ function AdministracionPage() {
                 }}
                 value={formulario.categoria}
               >
+                {!categoriasDisponibles.some(({ id }) => id === formulario.categoria) && <option value={formulario.categoria}>Categoría archivada (reasignar)</option>}
                 {categoriasDisponibles.map((categoria) => (
                   <option key={categoria.id} value={categoria.id}>
                     {categoria.nombre}
@@ -472,8 +621,39 @@ function AdministracionPage() {
                     }
                     type="checkbox"
                   />
-                  Este producto estará disponible como sabor seleccionable
+                  Este producto es un insumo de sabor para preparar cucuruchos
                 </label>}
+                {formulario.esSabor && (
+                  <label className="text-sm font-medium text-slate-700" htmlFor="producto-categoria-sabor">
+                    Categoría del insumo (grupo de sabores)
+                    <select
+                      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                      id="producto-categoria-sabor"
+                      onChange={(event) => setFormulario((actual) => ({ ...actual, categoriaSabor: event.target.value }))}
+                      required
+                      value={formulario.categoriaSabor}
+                    >
+                      <option value="">Selecciona una categoría</option>
+                      {formulario.categoriaSabor && !categoriasSabores.some(({ id }) => id === formulario.categoriaSabor) && <option value={formulario.categoriaSabor}>Categoría archivada (reasignar)</option>}
+                      {categoriasSabores.map((categoria) => (
+                        <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
+                      ))}
+                    </select>
+                    {!altaCategoriaSabor ? (
+                      <button className="mt-2 text-sm font-semibold text-emerald-800 underline" onClick={() => { setErrorCategoriaSabor(""); setAltaCategoriaSabor(true); }} type="button">+ Crear categoría</button>
+                    ) : (
+                      <span className="mt-2 flex flex-wrap gap-2">
+                        <input aria-label="Nombre de la categoría de sabor" autoFocus className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 font-normal" maxLength={60} minLength={2} onChange={(event) => setNombreCategoriaSabor(event.target.value)} placeholder="Ej.: Chocolates" value={nombreCategoriaSabor} />
+                        <button className="rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white" onClick={agregarCategoriaSaborDesdeProducto} type="button">Guardar</button>
+                        <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setAltaCategoriaSabor(false)} type="button">Cancelar</button>
+                        {errorCategoriaSabor && <span className="w-full text-sm text-red-700" role="alert">{errorCategoriaSabor}</span>}
+                      </span>
+                    )}
+                    <span className="mt-1 block text-xs font-normal text-slate-500">
+                      El producto que agregas será el sabor final dentro de este grupo.
+                    </span>
+                  </label>
+                )}
                 {(formulario.esSabor || (!formulario.tipoCucurucho && !formulario.configurarSabores)) && (
                   <label
                     className="text-sm font-medium text-slate-700"
@@ -577,11 +757,6 @@ function AdministracionPage() {
               />
             </label>}
 
-            <label className="text-sm font-medium text-slate-700" htmlFor="producto-costo">
-              {formulario.esSabor ? "Costo por porción" : formulario.tipoCucurucho ? "Costo base del cucurucho" : "Costo unitario"}
-              <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="producto-costo" min="0" onChange={(event) => setFormulario({ ...formulario, costo: event.target.value })} placeholder="Opcional" step="0.01" type="number" value={formulario.costo} />
-              <span className="mt-1 block text-xs font-normal text-slate-500">Permite estimar la ganancia bruta. En sabores, indica el costo de una bocha.</span>
-            </label>
 
             <label
               className="text-sm font-medium text-slate-700 md:col-span-2"
@@ -661,12 +836,43 @@ function AdministracionPage() {
           className="text-xl font-semibold text-slate-900"
           id="catalogo-heading"
         >
-          Catálogo ({productos.length})
+          Catálogo ({productosFiltrados.length})
         </h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-medium text-slate-700" htmlFor="catalogo-filtro-categoria">
+            Filtrar por categoría
+            <select
+              className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"
+              id="catalogo-filtro-categoria"
+              onChange={(event) => setFiltroCategoriaCatalogo(event.target.value)}
+              value={filtroCategoriaCatalogo}
+            >
+              <option value="todas">Todas las categorías</option>
+              {categoriasDisponibles.map((categoria) => (
+                <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="catalogo-busqueda">
+            Buscar en el catálogo
+            <input
+              className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+              id="catalogo-busqueda"
+              onChange={(event) => setBusquedaCatalogo(event.target.value)}
+              placeholder="Nombre o descripción"
+              type="search"
+              value={busquedaCatalogo}
+            />
+          </label>
+        </div>
         {productos.length === 0 ? (
           <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
             No hay productos cargados. Agrega el primer producto desde este
             formulario.
+          </p>
+        ) : productosFiltrados.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+            No hay productos que coincidan con esos filtros.
           </p>
         ) : (
           <ul className="mt-4 grid gap-3 md:grid-cols-2">
@@ -794,25 +1000,13 @@ function AdministracionPage() {
           <h3 className="text-lg font-semibold text-slate-900 md:col-span-2">
             Crear cuenta
           </h3>
-          <label
-            className="text-sm font-medium text-slate-700"
-            htmlFor="usuario-nombre"
-          >
+          <label className="text-sm font-medium text-slate-700" htmlFor="usuario-apellido">
+            Apellido
+            <input autoComplete="family-name" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="usuario-apellido" maxLength={80} onChange={(event) => setFormularioUsuario({ ...formularioUsuario, apellido: event.target.value })} required value={formularioUsuario.apellido} />
+          </label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="usuario-nombre">
             Nombre
-            <input
-              autoComplete="name"
-              className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
-              id="usuario-nombre"
-              maxLength={120}
-              onChange={(event) =>
-                setFormularioUsuario({
-                  ...formularioUsuario,
-                  name: event.target.value,
-                })
-              }
-              required
-              value={formularioUsuario.name}
-            />
+            <input autoComplete="given-name" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="usuario-nombre" maxLength={80} onChange={(event) => setFormularioUsuario({ ...formularioUsuario, nombre: event.target.value })} required value={formularioUsuario.nombre} />
           </label>
           <label
             className="text-sm font-medium text-slate-700"
@@ -834,11 +1028,15 @@ function AdministracionPage() {
               value={formularioUsuario.email}
             />
           </label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="usuario-dni">
+            DNI
+            <input autoComplete="off" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="usuario-dni" inputMode="numeric" maxLength={20} onChange={(event) => setFormularioUsuario({ ...formularioUsuario, dni: event.target.value.replace(/\D/g, "") })} required value={formularioUsuario.dni} />
+          </label>
           <label
             className="text-sm font-medium text-slate-700"
             htmlFor="usuario-password"
           >
-            Contraseña inicial
+            Contraseña
             <input
               autoComplete="new-password"
               className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
@@ -870,7 +1068,7 @@ function AdministracionPage() {
               }
               value={formularioUsuario.role}
             >
-              <option value="Cajero">Cajero</option>
+              <option value="Cajero">Empleado</option>
               <option value="Administrador">Administrador</option>
             </select>
           </label>
@@ -904,13 +1102,14 @@ function AdministracionPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-slate-900">
-                      {usuario.name}
+                      {usuario.apellido ? usuario.apellido + ", " + usuario.nombre : usuario.name}
                     </p>
                     <p className="truncate text-sm text-slate-600">
                       {usuario.email}
                     </p>
+                    {usuario.dni && <p className="text-sm text-slate-600">DNI {usuario.dni}</p>}
                     <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                      {usuario.role}
+                      {usuario.role === "Cajero" ? "Empleado" : usuario.role}
                     </p>
                   </div>
                   <button

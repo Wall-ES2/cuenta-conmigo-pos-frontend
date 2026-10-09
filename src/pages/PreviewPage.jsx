@@ -3,13 +3,19 @@ import {
   categorias,
   formatearPrecio,
 } from "../modules/ventas/data/productos.js";
+import {
+  crearCategoriaCatalogo,
+  eliminarCategoriasCatalogo,
+  listarCategoriasEliminables,
+  listarCategoriasProductos,
+  listarCategoriasSabores,
+} from "../modules/administracion/services/categoriasCatalogo.js";
 import { metodosPago } from "../modules/ventas/data/metodosPago.js";
 import CarritoVentas from "../modules/ventas/components/CarritoVentas.jsx";
 import ConfiguradorSaboresModal from "../modules/ventas/components/ConfiguradorSaboresModal.jsx";
 import ProductoCard from "../modules/ventas/components/ProductoCard.jsx";
 import {
   crearClaveLineaVenta,
-  calcularCostoUnitarioVenta,
   validarDisponibilidadSaboresEnCarrito,
   validarSeleccionSabores,
 } from "../modules/ventas/domain/configuracionSabores.js";
@@ -33,7 +39,6 @@ const productosDemo = [
     nombre: "Vainilla",
     categoria: "helados",
     precio: 1,
-    costo: 180,
     detalle: "Sabor de helado",
     imagenUrl: "",
     esSabor: true,
@@ -46,7 +51,6 @@ const productosDemo = [
     nombre: "Chocolate",
     categoria: "helados",
     precio: 1,
-    costo: 220,
     detalle: "Sabor de helado",
     imagenUrl: "",
     esSabor: true,
@@ -59,7 +63,6 @@ const productosDemo = [
     nombre: "Cucurucho doble",
     categoria: "helados",
     precio: 2500,
-    costo: 350,
     detalle: "Cucurucho · doble",
     imagenUrl: "",
     configuracionVenta: {
@@ -73,7 +76,6 @@ const productosDemo = [
     nombre: "Facturas",
     categoria: "panaderia",
     precio: 750,
-    costo: 300,
     detalle: "Unidad",
     imagenUrl: "",
     controlaStock: true,
@@ -85,7 +87,6 @@ const productosDemo = [
     nombre: "Café latte",
     categoria: "cafeteria",
     precio: 2200,
-    costo: 680,
     controlaStock: true,
     stockDisponible: 12,
     stockMinimo: 3,
@@ -97,7 +98,6 @@ const productosDemo = [
     nombre: "Capuccino",
     categoria: "cafeteria",
     precio: 2400,
-    costo: 720,
     controlaStock: true,
     stockDisponible: 10,
     stockMinimo: 3,
@@ -109,7 +109,6 @@ const productosDemo = [
     nombre: "Croissant",
     categoria: "panaderia",
     precio: 1600,
-    costo: 500,
     controlaStock: true,
     stockDisponible: 14,
     stockMinimo: 4,
@@ -121,7 +120,6 @@ const productosDemo = [
     nombre: "Medialuna",
     categoria: "panaderia",
     precio: 900,
-    costo: 270,
     controlaStock: true,
     stockDisponible: 20,
     stockMinimo: 5,
@@ -133,7 +131,6 @@ const productosDemo = [
     nombre: "Agua mineral",
     categoria: "otros",
     precio: 1200,
-    costo: 350,
     controlaStock: true,
     stockDisponible: 9,
     stockMinimo: 3,
@@ -161,10 +158,10 @@ const formularioProductoDemoVacio = {
   nombre: "",
   categoria: "helados",
   precio: "",
-  costo: "",
   detalle: "",
   imagenUrl: "",
   esSabor: false,
+  categoriaSabor: "",
   tipoCucurucho: false,
   configurarSabores: false,
   cantidadSabores: "1",
@@ -191,14 +188,12 @@ function crearVentasDemo() {
         categoria: "cafeteria",
         cantidad: 2,
         totalLinea: 4400,
-        costoUnitario: 680,
       },
       {
         nombre: "Croissant",
         categoria: "panaderia",
         cantidad: 1,
         totalLinea: 1600,
-        costoUnitario: 500,
       },
     ]),
     ventaDemo(
@@ -212,7 +207,6 @@ function crearVentasDemo() {
           cantidad: 2,
           totalLinea: 3600,
           sabores: [{ productoId: "demo-sabor-vainilla", nombre: "Vainilla" }],
-          costoUnitario: 480,
         },
       ],
       "pendiente",
@@ -223,14 +217,12 @@ function crearVentasDemo() {
         categoria: "cafeteria",
         cantidad: 1,
         totalLinea: 2400,
-        costoUnitario: 720,
       },
       {
         nombre: "Medialuna",
         categoria: "panaderia",
         cantidad: 2,
         totalLinea: 1800,
-        costoUnitario: 270,
       },
     ]),
     ventaDemo("demo-venta-4", fecha(2, 14), "Transferencia", [
@@ -239,28 +231,25 @@ function crearVentasDemo() {
         categoria: "helados",
         cantidad: 2,
         totalLinea: 5000,
-          sabores: [
-            { productoId: "demo-sabor-vainilla", nombre: "Vainilla" },
-            { productoId: "demo-sabor-chocolate", nombre: "Chocolate" },
-          ],
-          costoUnitario: 750,
+        sabores: [
+          { productoId: "demo-sabor-vainilla", nombre: "Vainilla" },
+          { productoId: "demo-sabor-chocolate", nombre: "Chocolate" },
+        ],
       },
     ]),
     ventaDemo("demo-venta-5", fecha(4, 16), "Tarjeta", [
       {
-          nombre: "Cucurucho simple",
+        nombre: "Cucurucho simple",
         categoria: "helados",
         cantidad: 2,
         totalLinea: 3800,
-          sabores: [{ productoId: "demo-sabor-chocolate", nombre: "Chocolate" }],
-          costoUnitario: 520,
+        sabores: [{ productoId: "demo-sabor-chocolate", nombre: "Chocolate" }],
       },
       {
         nombre: "Agua mineral",
         categoria: "otros",
         cantidad: 1,
         totalLinea: 1200,
-        costoUnitario: 350,
       },
     ]),
     ventaDemo("demo-venta-6", fecha(6, 13), "Efectivo", [
@@ -269,14 +258,12 @@ function crearVentasDemo() {
         categoria: "cafeteria",
         cantidad: 1,
         totalLinea: 2200,
-        costoUnitario: 680,
       },
       {
         nombre: "Croissant",
         categoria: "panaderia",
         cantidad: 1,
         totalLinea: 1600,
-        costoUnitario: 500,
       },
     ]),
   ];
@@ -338,13 +325,22 @@ function PreviewPage() {
   const reporte = useMemo(() => {
     const rangoValido = fechaDesde && fechaHasta && fechaDesde <= fechaHasta;
     const fechaFin = fechaHasta || fechaDesde || fechaEspecifica;
-    const diasRango = fechaDesde && fechaHasta && rangoValido
-      ? Math.floor((Date.parse(fechaHasta + "T12:00:00") - Date.parse(fechaDesde + "T12:00:00")) / 86400000) + 1
-      : fechaDesde || fechaHasta ? 1 : 0;
+    const diasRango =
+      fechaDesde && fechaHasta && rangoValido
+        ? Math.floor(
+            (Date.parse(fechaHasta + "T12:00:00") -
+              Date.parse(fechaDesde + "T12:00:00")) /
+              86400000,
+          ) + 1
+        : fechaDesde || fechaHasta
+          ? 1
+          : 0;
+    const fechaBase = fechaFin ? new Date(fechaFin + "T12:00:00") : new Date();
+    if (!fechaFin && periodo === 0) fechaBase.setDate(fechaBase.getDate() - 1);
     return calcularReporteVentas(
       ventas,
-      fechaFin ? new Date(fechaFin + "T12:00:00") : new Date(),
-      diasRango || (fechaEspecifica ? 1 : periodo),
+      fechaBase,
+      diasRango || (fechaEspecifica ? 1 : periodo === 0 ? 1 : periodo),
     );
   }, [fechaDesde, fechaHasta, fechaEspecifica, periodo, ventas]);
 
@@ -354,8 +350,11 @@ function PreviewPage() {
       saboresDisponibles: productos,
       seleccion: seleccionSabores,
     });
-    const porcionesNuevas =
-      producto.configuracionVenta ? saboresIds : producto.controlaStock ? [producto.id] : [];
+    const porcionesNuevas = producto.configuracionVenta
+      ? saboresIds
+      : producto.controlaStock
+        ? [producto.id]
+        : [];
     validarDisponibilidadSaboresEnCarrito({
       productos,
       carrito,
@@ -376,7 +375,10 @@ function PreviewPage() {
               ? { ...item, cantidad: item.cantidad + 1 }
               : item,
           )
-        : [...actual, { ...producto, precio: precioVenta, cantidad: 1, lineId, sabores }];
+        : [
+            ...actual,
+            { ...producto, precio: precioVenta, cantidad: 1, lineId, sabores },
+          ];
     });
   }
 
@@ -402,14 +404,28 @@ function PreviewPage() {
     if (lineaEditando) {
       const linea = lineaEditando;
       const restante = carrito.filter((item) => item.lineId !== linea.lineId);
-      validarDisponibilidadSaboresEnCarrito({ productos, carrito: restante, seleccion, cantidadUnidades: linea.cantidad });
-      const sabores = seleccion.map((id) => { const sabor = productos.find((item) => item.id === id); return { productoId: id, nombre: sabor.nombre }; });
+      validarDisponibilidadSaboresEnCarrito({
+        productos,
+        carrito: restante,
+        seleccion,
+        cantidadUnidades: linea.cantidad,
+      });
+      const sabores = seleccion.map((id) => {
+        const sabor = productos.find((item) => item.id === id);
+        return { productoId: id, nombre: sabor.nombre };
+      });
       const lineId = crearClaveLineaVenta(linea.id, seleccion);
       const precio = productos.find((item) => item.id === linea.id).precio;
       const existe = restante.some((item) => item.lineId === lineId);
-      setCarrito(existe
-        ? restante.map((item) => item.lineId === lineId ? { ...item, cantidad: item.cantidad + linea.cantidad } : item)
-        : [...restante, { ...linea, lineId, precio, sabores }]);
+      setCarrito(
+        existe
+          ? restante.map((item) =>
+              item.lineId === lineId
+                ? { ...item, cantidad: item.cantidad + linea.cantidad }
+                : item,
+            )
+          : [...restante, { ...linea, lineId, precio, sabores }],
+      );
     } else {
       agregarAlCarrito(productoConfigurando, seleccion);
     }
@@ -501,7 +517,6 @@ function PreviewPage() {
 
     const items = carrito.map((item) => {
       const sabores = item.sabores ?? [];
-      const costoUnitario = calcularCostoUnitarioVenta({ producto: item, productos, sabores });
       return {
         productoId: item.id,
         nombre: item.nombre,
@@ -509,7 +524,6 @@ function PreviewPage() {
         cantidad: item.cantidad,
         totalLinea: item.precio * item.cantidad,
         sabores,
-        ...(costoUnitario === undefined ? {} : { costoUnitario }),
       };
     });
     const porcionesVendidas = new Map();
@@ -650,7 +664,7 @@ function PreviewPage() {
               value={rolActivo}
             >
               <option value="Administrador">Administrador</option>
-              <option value="Cajero">Cajero</option>
+              <option value="Cajero">Empleado</option>
             </select>
           </div>
         </header>
@@ -706,7 +720,7 @@ function PreviewPage() {
                     aria-label="Filtrar por categoría"
                     className="sales-categories"
                   >
-                    {categorias.map((categoria) => (
+                    {[{ id: "todos", nombre: "Todos" }, ...listarCategoriasProductos()].map((categoria) => (
                       <button
                         aria-pressed={categoriaActiva === categoria.id}
                         className="sales-category-button"
@@ -747,14 +761,19 @@ function PreviewPage() {
                     )
                   }
                   onVaciar={() => setCarrito([])}
-                  onEditar={(linea) => { setProductoConfigurando(linea); setLineaEditando(linea); }}
+                  onEditar={(linea) => {
+                    setProductoConfigurando(linea);
+                    setLineaEditando(linea);
+                  }}
                   notaVenta="La operación de demostración no se guarda."
                   subtotal={subtotal}
                 />
               </div>
             </section>
           )}
-          {seccion === "inventario" && <InventarioDemo productos={productos} setProductos={setProductos} />}
+          {seccion === "inventario" && (
+            <InventarioDemo productos={productos} rol={rolActivo} setProductos={setProductos} />
+          )}
           {seccion === "financiero" && (
             <FinancieroDemo
               fechaEspecifica={fechaEspecifica}
@@ -762,10 +781,25 @@ function PreviewPage() {
               fechaHasta={fechaHasta}
               periodo={periodo}
               reporte={reporte}
-              seleccionarDia={(clave) => { setFechaDesde(""); setFechaHasta(""); setFechaEspecifica((actual) => actual === clave ? "" : clave); }}
-              cambiarFechaDesde={(valor) => { setFechaEspecifica(""); setFechaDesde(valor); }}
-              cambiarFechaHasta={(valor) => { setFechaEspecifica(""); setFechaHasta(valor); }}
-              seleccionarPeriodo={(valor) => { setFechaEspecifica(""); setFechaDesde(""); setFechaHasta(""); setPeriodo(valor); }}
+              seleccionarDia={(clave) => {
+                setFechaDesde("");
+                setFechaHasta("");
+                setFechaEspecifica((actual) => (actual === clave ? "" : clave));
+              }}
+              cambiarFechaDesde={(valor) => {
+                setFechaEspecifica("");
+                setFechaDesde(valor);
+              }}
+              cambiarFechaHasta={(valor) => {
+                setFechaEspecifica("");
+                setFechaHasta(valor);
+              }}
+              seleccionarPeriodo={(valor) => {
+                setFechaEspecifica("");
+                setFechaDesde("");
+                setFechaHasta("");
+                setPeriodo(valor);
+              }}
             />
           )}
           {seccion === "administracion" && (
@@ -781,7 +815,10 @@ function PreviewPage() {
 
       {productoConfigurando && (
         <ConfiguradorSaboresModal
-          onCancelar={() => { setProductoConfigurando(null); setLineaEditando(null); }}
+          onCancelar={() => {
+            setProductoConfigurando(null);
+            setLineaEditando(null);
+          }}
           onConfirmar={confirmarSabores}
           producto={productoConfigurando}
           lineaEditando={lineaEditando}
@@ -924,70 +961,130 @@ function InicioDemo({ rolActivo, seleccionarSeccion }) {
   );
 }
 
-function ResumenIndicadores({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHasta, categoriaGrafico }) {
-  const categoriaSeleccionada = categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
-  const totalVendidoSeleccionado = categoriaGrafico === "todas"
-    ? reporte.totalFacturado
-    : reporte.porCategoria.find((item) => item.nombre === categoriaGrafico)?.total ?? 0;
-  const datosCategoriaSeleccionada = reporte.porCategoria.find((item) => item.nombre === categoriaGrafico);
-  const ventasRegistradasSeleccionadas = categoriaGrafico === "todas"
-    ? reporte.cantidadVentas
-    : datosCategoriaSeleccionada?.cantidadVentas ?? 0;
-  const unidadesVendidasSeleccionadas = categoriaGrafico === "todas"
-    ? reporte.unidadesVendidas
-    : datosCategoriaSeleccionada?.cantidad ?? 0;
+function ResumenIndicadores({
+  periodo,
+  reporte,
+  fechaEspecifica,
+  fechaDesde,
+  fechaHasta,
+  categoriaGrafico,
+}) {
+  const categoriaSeleccionada =
+    categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
+  const totalVendidoSeleccionado =
+    categoriaGrafico === "todas"
+      ? reporte.totalFacturado
+      : (reporte.porCategoria.find((item) => item.nombre === categoriaGrafico)
+          ?.total ?? 0);
+  const datosCategoriaSeleccionada = reporte.porCategoria.find(
+    (item) => item.nombre === categoriaGrafico,
+  );
+  const ventasRegistradasSeleccionadas =
+    categoriaGrafico === "todas"
+      ? reporte.cantidadVentas
+      : (datosCategoriaSeleccionada?.cantidadVentas ?? 0);
+  const unidadesVendidasSeleccionadas =
+    categoriaGrafico === "todas"
+      ? reporte.unidadesVendidas
+      : (datosCategoriaSeleccionada?.cantidad ?? 0);
   const promedioSeleccionado = ventasRegistradasSeleccionadas
     ? totalVendidoSeleccionado / ventasRegistradasSeleccionadas
     : 0;
-  const etiquetaPeriodo = fechaDesde && fechaHasta
-    ? `${new Date(fechaDesde + "T12:00:00").toLocaleDateString("es-CL")} al ${new Date(fechaHasta + "T12:00:00").toLocaleDateString("es-CL")}`
-    : fechaDesde || fechaHasta
-      ? new Date((fechaDesde || fechaHasta) + "T12:00:00").toLocaleDateString("es-CL")
-      : fechaEspecifica ? new Date(`${fechaEspecifica}T12:00:00`).toLocaleDateString("es-CL") : periodo === 1 ? "Hoy" : `Últimos ${periodo} días`;
+  const etiquetaPeriodo =
+    fechaDesde && fechaHasta
+      ? `${new Date(fechaDesde + "T12:00:00").toLocaleDateString("es-CL")} al ${new Date(fechaHasta + "T12:00:00").toLocaleDateString("es-CL")}`
+      : fechaDesde || fechaHasta
+        ? new Date((fechaDesde || fechaHasta) + "T12:00:00").toLocaleDateString(
+            "es-CL",
+          )
+        : fechaEspecifica
+          ? new Date(`${fechaEspecifica}T12:00:00`).toLocaleDateString("es-CL")
+          : periodo === 0
+            ? "Ayer"
+            : periodo === 1
+              ? "Hoy"
+              : `Últimos ${periodo} días`;
 
   return (
-    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <TarjetaIndicador
         detalle={etiquetaPeriodo}
-        etiqueta={categoriaGrafico === "todas" ? "Total vendido" : "Total vendido · " + categoriaSeleccionada}
+        etiqueta={
+          categoriaGrafico === "todas"
+            ? "Total vendido"
+            : "Total vendido · " + categoriaSeleccionada
+        }
         valor={formatearPrecio(totalVendidoSeleccionado)}
       />
-      <TarjetaIndicador etiqueta="Total histórico vendido" detalle="Todas las ventas guardadas" valor={formatearPrecio(reporte.totalFacturadoHistorico)} />
-      <TarjetaIndicador etiqueta="Ganancia bruta estimada" detalle={reporte.gananciaBruta === null ? `${reporte.unidadesSinCosto} unidades sin costo registrado` : "Ventas menos costos de producto e insumos"} valor={reporte.gananciaBruta === null ? "Faltan costos" : formatearPrecio(reporte.gananciaBruta)} />
-      <TarjetaIndicador etiqueta="Margen bruto" detalle={reporte.margenBrutoPorcentaje === null ? "Disponible al completar los costos" : "Sobre el total vendido"} valor={reporte.margenBrutoPorcentaje === null ? "—" : `${reporte.margenBrutoPorcentaje.toFixed(1)}%`} />
       <TarjetaIndicador
-        etiqueta={categoriaGrafico === "todas" ? "Ventas registradas" : "Ventas registradas · " + categoriaSeleccionada}
+        etiqueta="Total histórico vendido"
+        detalle="Todas las ventas guardadas"
+        valor={formatearPrecio(reporte.totalFacturadoHistorico)}
+      />
+      <TarjetaIndicador
+        etiqueta={
+          categoriaGrafico === "todas"
+            ? "Ventas registradas"
+            : "Ventas registradas · " + categoriaSeleccionada
+        }
         valor={String(ventasRegistradasSeleccionadas)}
       />
       <TarjetaIndicador
-        etiqueta={categoriaGrafico === "todas" ? "Unidades vendidas" : "Unidades vendidas · " + categoriaSeleccionada}
+        etiqueta={
+          categoriaGrafico === "todas"
+            ? "Unidades vendidas"
+            : "Unidades vendidas · " + categoriaSeleccionada
+        }
         valor={String(unidadesVendidasSeleccionadas)}
       />
       <TarjetaIndicador
-        etiqueta={categoriaGrafico === "todas" ? "Promedio por venta" : "Promedio por venta · " + categoriaSeleccionada}
+        etiqueta={
+          categoriaGrafico === "todas"
+            ? "Promedio por venta"
+            : "Promedio por venta · " + categoriaSeleccionada
+        }
         valor={formatearPrecio(promedioSeleccionado)}
       />
     </div>
   );
 }
 
-function FinancieroDemo({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHasta, seleccionarDia, cambiarFechaDesde, cambiarFechaHasta, seleccionarPeriodo }) {
+function FinancieroDemo({
+  periodo,
+  reporte,
+  fechaEspecifica,
+  fechaDesde,
+  fechaHasta,
+  seleccionarDia,
+  cambiarFechaDesde,
+  cambiarFechaHasta,
+  seleccionarPeriodo,
+}) {
   const [categoriaGrafico, setCategoriaGrafico] = useState("todas");
-  const categoriaSeleccionada = categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
+  const categoriaSeleccionada =
+    categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
   const diasGrafico = reporte.dias.map((dia) => {
     if (categoriaGrafico === "todas") return dia;
     const datosCategoria = dia.porCategoria?.[categoriaGrafico];
-    return { ...dia, total: datosCategoria?.total ?? 0, cantidad: datosCategoria?.cantidad ?? 0 };
+    return {
+      ...dia,
+      total: datosCategoria?.total ?? 0,
+      cantidad: datosCategoria?.cantidad ?? 0,
+    };
   });
-  const productosDestacados = categoriaGrafico === "todas"
-    ? reporte.productosMasVendidos
-    : reporte.productosPorCategoria?.[categoriaGrafico] ?? [];
-  const metodosPagoSeleccionados = categoriaGrafico === "todas"
-    ? reporte.porMetodo
-    : reporte.porMetodoPorCategoria?.[categoriaGrafico] ?? [];
-  const totalVendidoSeleccionado = categoriaGrafico === "todas"
-    ? reporte.totalFacturado
-    : reporte.porCategoria.find((item) => item.nombre === categoriaGrafico)?.total ?? 0;
+  const productosDestacados =
+    categoriaGrafico === "todas"
+      ? reporte.productosMasVendidos
+      : (reporte.productosPorCategoria?.[categoriaGrafico] ?? []);
+  const metodosPagoSeleccionados =
+    categoriaGrafico === "todas"
+      ? reporte.porMetodo
+      : (reporte.porMetodoPorCategoria?.[categoriaGrafico] ?? []);
+  const totalVendidoSeleccionado =
+    categoriaGrafico === "todas"
+      ? reporte.totalFacturado
+      : (reporte.porCategoria.find((item) => item.nombre === categoriaGrafico)
+          ?.total ?? 0);
 
   return (
     <section className="mx-auto max-w-6xl">
@@ -1003,20 +1100,52 @@ function FinancieroDemo({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHa
             Indicadores de ejemplo para recorrer el tablero.
           </p>
         </div>
-        <label className="text-sm font-medium text-slate-700" htmlFor="demo-categoria-grafico">
+        <label
+          className="text-sm font-medium text-slate-700"
+          htmlFor="demo-categoria-grafico"
+        >
           Categoría de gráficos
-          <select className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="demo-categoria-grafico" onChange={(event) => setCategoriaGrafico(event.target.value)} value={categoriaGrafico}>
+          <select
+            className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5"
+            id="demo-categoria-grafico"
+            onChange={(event) => setCategoriaGrafico(event.target.value)}
+            value={categoriaGrafico}
+          >
             <option value="todas">Todas las categorías</option>
-            {reporte.porCategoria.map((item) => <option key={item.nombre} value={item.nombre}>{categoriaNombre[item.nombre] ?? item.nombre}</option>)}
+            {reporte.porCategoria.map((item) => (
+              <option key={item.nombre} value={item.nombre}>
+                {categoriaNombre[item.nombre] ?? item.nombre}
+              </option>
+            ))}
           </select>
         </label>
-        <label className="text-sm font-medium text-slate-700" htmlFor="demo-fecha-desde">
+        <label
+          className="text-sm font-medium text-slate-700"
+          htmlFor="demo-fecha-desde"
+        >
           Desde
-          <input className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="demo-fecha-desde" max={fechaHasta || undefined} onChange={(event) => cambiarFechaDesde(event.target.value)} type="date" value={fechaDesde} />
+          <input
+            className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5"
+            id="demo-fecha-desde"
+            max={fechaHasta || undefined}
+            onChange={(event) => cambiarFechaDesde(event.target.value)}
+            type="date"
+            value={fechaDesde}
+          />
         </label>
-        <label className="text-sm font-medium text-slate-700" htmlFor="demo-fecha-hasta">
+        <label
+          className="text-sm font-medium text-slate-700"
+          htmlFor="demo-fecha-hasta"
+        >
           Hasta
-          <input className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="demo-fecha-hasta" min={fechaDesde || undefined} onChange={(event) => cambiarFechaHasta(event.target.value)} type="date" value={fechaHasta} />
+          <input
+            className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5"
+            id="demo-fecha-hasta"
+            min={fechaDesde || undefined}
+            onChange={(event) => cambiarFechaHasta(event.target.value)}
+            type="date"
+            value={fechaHasta}
+          />
         </label>
         <label
           className="text-sm font-medium text-slate-700"
@@ -1030,19 +1159,32 @@ function FinancieroDemo({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHa
             value={periodo}
           >
             <option value={1}>Hoy</option>
+            <option value={0}>Ayer</option>
             <option value={7}>Últimos 7 días</option>
             <option value={30}>Últimos 30 días</option>
-            <option value={90}>Últimos 90 días</option>
           </select>
         </label>
       </header>
-      <ResumenIndicadores categoriaGrafico={categoriaGrafico} fechaDesde={fechaDesde} fechaHasta={fechaHasta} fechaEspecifica={fechaEspecifica} periodo={periodo} reporte={reporte} />
+      <ResumenIndicadores
+        categoriaGrafico={categoriaGrafico}
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        fechaEspecifica={fechaEspecifica}
+        periodo={periodo}
+        reporte={reporte}
+      />
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
-            {categoriaGrafico === "todas" ? "Tendencia diaria" : `Tendencia diaria · ${categoriaSeleccionada}`}
+            {categoriaGrafico === "todas"
+              ? "Tendencia diaria"
+              : `Tendencia diaria · ${categoriaSeleccionada}`}
           </h2>
-          <TendenciaVentas compacto={diasGrafico.length >= 30} dias={diasGrafico} onSeleccionarDia={seleccionarDia} />
+          <TendenciaVentas
+            compacto={diasGrafico.length >= 30}
+            dias={diasGrafico}
+            onSeleccionarDia={seleccionarDia}
+          />
         </section>
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
@@ -1070,7 +1212,11 @@ function FinancieroDemo({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHa
         </section>
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
-            {categoriaGrafico === "helados" ? "Helados más vendidos" : categoriaGrafico === "todas" ? "Productos más vendidos" : `Más vendidos · ${categoriaSeleccionada}`}
+            {categoriaGrafico === "helados"
+              ? "Helados más vendidos"
+              : categoriaGrafico === "todas"
+                ? "Productos más vendidos"
+                : `Más vendidos · ${categoriaSeleccionada}`}
           </h2>
           <ListaAgrupacion
             elementos={productosDestacados}
@@ -1078,8 +1224,14 @@ function FinancieroDemo({ periodo, reporte, fechaEspecifica, fechaDesde, fechaHa
           />
         </section>
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Sabores de helado más elegidos</h2>
-          <ListaAgrupacion cantidadEtiqueta="bochas" elementos={reporte.saboresMasElegidos} mostrarTotal={false} />
+          <h2 className="text-lg font-semibold text-slate-900">
+            Sabores de helado más elegidos
+          </h2>
+          <ListaAgrupacion
+            cantidadEtiqueta="bochas"
+            elementos={reporte.saboresMasElegidos}
+            mostrarTotal={false}
+          />
         </section>
       </div>
       <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1099,12 +1251,13 @@ function ListaAgrupacion({
   mostrarTotal = true,
 }) {
   const [orden, setOrden] = useState("default");
-  const elementosOrdenados = orden === "default"
-    ? elementos
-    : [...elementos].sort((a, b) => {
-      const campo = mostrarTotal ? "total" : "cantidad";
-      return orden === "asc" ? a[campo] - b[campo] : b[campo] - a[campo];
-    });
+  const elementosOrdenados =
+    orden === "default"
+      ? elementos
+      : [...elementos].sort((a, b) => {
+          const campo = mostrarTotal ? "total" : "cantidad";
+          return orden === "asc" ? a[campo] - b[campo] : b[campo] - a[campo];
+        });
 
   if (!elementos.length)
     return (
@@ -1115,29 +1268,44 @@ function ListaAgrupacion({
 
   return (
     <>
-      <button className="mt-3 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600" onClick={() => setOrden(orden === "default" ? "asc" : orden === "asc" ? "desc" : "default")} type="button">
-        Orden: {orden === "default" ? "predeterminado" : orden === "asc" ? "menor a mayor" : "mayor a menor"}
+      <button
+        className="mt-3 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600"
+        onClick={() =>
+          setOrden(
+            orden === "default" ? "asc" : orden === "asc" ? "desc" : "default",
+          )
+        }
+        type="button"
+      >
+        Orden:{" "}
+        {orden === "default"
+          ? "predeterminado"
+          : orden === "asc"
+            ? "menor a mayor"
+            : "mayor a menor"}
       </button>
       <ul className="mt-3 divide-y divide-slate-100">
-      {elementosOrdenados.map((item) => (
-        <li
-          className="flex items-center justify-between gap-3 py-3 text-sm"
-          key={item.nombre}
-        >
-          <span>
-            <span className="block text-slate-700">{item.nombre}</span>
-            <span className="mt-1 block text-xs text-slate-500">
-              {item.cantidad} {cantidadEtiqueta}
-              {totalPeriodo > 0
-                ? ` · ${((item.total / totalPeriodo) * 100).toFixed(1)}%`
-                : ""}
+        {elementosOrdenados.map((item) => (
+          <li
+            className="flex items-center justify-between gap-3 py-3 text-sm"
+            key={item.nombre}
+          >
+            <span>
+              <span className="block text-slate-700">{item.nombre}</span>
+              <span className="mt-1 block text-xs text-slate-500">
+                {item.cantidad} {cantidadEtiqueta}
+                {totalPeriodo > 0
+                  ? ` · ${((item.total / totalPeriodo) * 100).toFixed(1)}%`
+                  : ""}
+              </span>
             </span>
-          </span>
-          {mostrarTotal && <strong className="font-semibold text-slate-900">
-            {formatearPrecio(item.total)}
-          </strong>}
-        </li>
-      ))}
+            {mostrarTotal && (
+              <strong className="font-semibold text-slate-900">
+                {formatearPrecio(item.total)}
+              </strong>
+            )}
+          </li>
+        ))}
       </ul>
     </>
   );
@@ -1156,7 +1324,9 @@ function ListaVentas({ ventas }) {
                 </span>
                 <span className="mt-1 block text-xs text-slate-500">
                   {venta.metodoPago} ·{" "}
-                  {venta.estado === "pendiente" ? "Pendiente de sincronizar" : "Sincronizada"}{" "}
+                  {venta.estado === "pendiente"
+                    ? "Pendiente de sincronizar"
+                    : "Sincronizada"}{" "}
                   ·{" "}
                   {venta.items.reduce(
                     (total, item) => total + item.cantidad,
@@ -1208,9 +1378,12 @@ function ListaVentas({ ventas }) {
 function obtenerEstadoStockDemo(producto) {
   if (!Number.isInteger(producto.stockDisponible)) return "sin-conteo";
   if (producto.stockDisponible === 0) return "agotado";
-  const minimo = Number.isInteger(producto.stockMinimo) ? producto.stockMinimo : 0;
+  const minimo = Number.isInteger(producto.stockMinimo)
+    ? producto.stockMinimo
+    : 0;
   if (producto.stockDisponible <= minimo) return "reponer";
-  if (minimo > 0 && producto.stockDisponible <= minimo * 2) return "por-agotarse";
+  if (minimo > 0 && producto.stockDisponible <= minimo * 2)
+    return "por-agotarse";
   return "en-stock";
 }
 
@@ -1223,15 +1396,30 @@ const estadosStockDemo = [
   { id: "sin-conteo", nombre: "Sin conteo" },
 ];
 
-function InventarioDemo({ productos, setProductos }) {
+function InventarioDemo({ productos, rol, setProductos }) {
   const [cantidadesCarga, setCantidadesCarga] = useState({});
+  const [detallesCarga, setDetallesCarga] = useState({});
+  const [modoInventario, setModoInventario] = useState("");
+  const [minimosEditados, setMinimosEditados] = useState({});
+  const [movimientosDemo, setMovimientosDemo] = useState([]);
+  const [errorCarga, setErrorCarga] = useState("");
+  const esAdministrador = rol === "Administrador";
   const [categoriaActiva, setCategoriaActiva] = useState("todos");
   const [estadoActivo, setEstadoActivo] = useState("todos");
   const [orden, setOrden] = useState({ campo: null, direccion: "asc" });
-  const stock = productos.filter((producto) => producto.controlaStock || producto.esSabor);
+  const stock = productos.filter(
+    (producto) => producto.controlaStock || producto.esSabor,
+  );
   const stockFiltrado = stock
-    .filter((producto) => categoriaActiva === "todos" || producto.categoria === categoriaActiva)
-    .filter((producto) => estadoActivo === "todos" || obtenerEstadoStockDemo(producto) === estadoActivo)
+    .filter(
+      (producto) =>
+        categoriaActiva === "todos" || producto.categoria === categoriaActiva,
+    )
+    .filter(
+      (producto) =>
+        estadoActivo === "todos" ||
+        obtenerEstadoStockDemo(producto) === estadoActivo,
+    )
     .sort((a, b) => {
       if (orden.campo === "stock") {
         const stockA = a.stockDisponible;
@@ -1240,9 +1428,10 @@ function InventarioDemo({ productos, setProductos }) {
         if (!Number.isInteger(stockA)) return 1;
         if (!Number.isInteger(stockB)) return -1;
       }
-      const comparacion = orden.campo === "stock"
-        ? a.stockDisponible - b.stockDisponible
-        : a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
+      const comparacion =
+        orden.campo === "stock"
+          ? a.stockDisponible - b.stockDisponible
+          : a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
       return orden.direccion === "asc" ? comparacion : -comparacion;
     });
 
@@ -1254,69 +1443,220 @@ function InventarioDemo({ productos, setProductos }) {
     });
   }
 
+  function guardarMinimosDemo() {
+    setProductos((actuales) => actuales.map((producto) => ({
+      ...producto,
+      ...(Object.prototype.hasOwnProperty.call(minimosEditados, producto.id)
+        ? { stockMinimo: Number(minimosEditados[producto.id]) }
+        : {}),
+    })));
+    setModoInventario("");
+    setErrorCarga("");
+  }
+
+  function confirmarCargas() {
+    const conCantidad = stock.filter((item) => cantidadesCarga[item.id] !== undefined && cantidadesCarga[item.id] !== "");
+    if (!conCantidad.length) {
+      setErrorCarga("Ingresa cantidad y detalle para al menos un producto.");
+      return;
+    }
+    const invalidos = conCantidad.filter((item) => {
+      const cantidad = Number(cantidadesCarga[item.id]);
+      return !Number.isInteger(cantidad) || cantidad < 1;
+    });
+    if (invalidos.length) {
+      setErrorCarga("Revisa la cantidad para: " + invalidos.map((item) => item.nombre).join(", ") + ".");
+      return;
+    }
+    const cargas = conCantidad.map((item) => {
+      const cantidad = Number(cantidadesCarga[item.id]);
+      const saldoPosterior = (item.stockDisponible ?? 0) + cantidad;
+      return { item, cantidad, saldoPosterior, detalle: detallesCarga[item.id]?.trim() || "Carga de stock" };
+    });
+    setProductos((actuales) => actuales.map((producto) => {
+      const carga = cargas.find(({ item }) => item.id === producto.id);
+      return carga ? { ...producto, stockDisponible: carga.saldoPosterior } : producto;
+    }));
+    setMovimientosDemo((actuales) => [
+      ...cargas.map(({ item, cantidad, saldoPosterior, detalle }) => ({
+        id: `mov-demo-${globalThis.crypto.randomUUID()}`,
+        producto: item.nombre,
+        cantidad,
+        saldoPosterior,
+        detalle,
+        fecha: new Date().toISOString(),
+        empleado: rol === "Cajero" ? "Empleado de prueba" : "Administrador de prueba",
+      })),
+      ...actuales,
+    ]);
+    setCantidadesCarga({});
+    setDetallesCarga({});
+    setModoInventario("");
+    setErrorCarga("");
+  }
   return (
     <section className="mx-auto max-w-6xl">
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">
         Inventario
       </h1>
-      <p className="mt-2 text-slate-600">Carga porciones y ajusta el mínimo requerido por sabor.</p>
-      <div aria-label="Filtrar inventario por categoría" className="mt-5 flex flex-wrap gap-2" role="group">
-        {[{ id: "todos", nombre: "Todas" }, ...categorias.filter(({ id }) => id !== "todos" && stock.some((producto) => producto.categoria === id))]
-          .map((categoria) => (
-            <button aria-pressed={categoriaActiva === categoria.id} className={`rounded-full px-3 py-1.5 text-sm font-medium ${categoriaActiva === categoria.id ? "bg-emerald-800 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`} key={categoria.id} onClick={() => setCategoriaActiva(categoria.id)} type="button">{categoria.nombre}</button>
-          ))}
+      <p className="mt-2 text-slate-600">
+        Carga porciones y ajusta el mínimo requerido por sabor.
+      </p>
+      <div className="mt-5 flex flex-wrap gap-2">
+        {esAdministrador && <button className={`rounded-lg border px-4 py-2 text-sm font-semibold ${modoInventario === "minimos" ? "border-emerald-800 bg-emerald-800 text-white" : "border-slate-300 bg-white text-slate-700"}`} onClick={() => { setModoInventario(modoInventario === "minimos" ? "" : "minimos"); setErrorCarga(""); setMinimosEditados(Object.fromEntries(stock.map((item) => [item.id, String(item.stockMinimo ?? 0)]))); }} type="button">Editar mínimos</button>}
+        <button className={`rounded-lg border px-4 py-2 text-sm font-semibold ${modoInventario === "carga" ? "border-emerald-800 bg-emerald-800 text-white" : "border-emerald-800 bg-white text-emerald-800"}`} onClick={() => { setModoInventario(modoInventario === "carga" ? "" : "carga"); setErrorCarga(""); setCantidadesCarga({}); setDetallesCarga({}); }} type="button">Cargar stock</button>
+      </div>
+      {errorCarga && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{errorCarga}</p>}
+      <div
+        aria-label="Filtrar inventario por categoría"
+        className="mt-5 flex flex-wrap gap-2"
+        role="group"
+      >
+        {[
+          { id: "todos", nombre: "Todas" },
+          ...listarCategoriasProductos(),
+        ].map((categoria) => (
+          <button
+            aria-pressed={categoriaActiva === categoria.id}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium ${categoriaActiva === categoria.id ? "bg-emerald-800 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+            key={categoria.id}
+            onClick={() => setCategoriaActiva(categoria.id)}
+            type="button"
+          >
+            {categoria.nombre}
+          </button>
+        ))}
       </div>
       <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full min-w-[36rem] text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th aria-sort={orden.campo === "nombre" ? (orden.direccion === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 font-semibold">
-                <button className="inline-flex items-center gap-1 hover:text-slate-900" onClick={() => alternarOrden("nombre")} type="button">Producto <span aria-hidden="true">{orden.campo === "nombre" ? (orden.direccion === "asc" ? "↑" : "↓") : "↕"}</span></button>
+              <th
+                aria-sort={
+                  orden.campo === "nombre"
+                    ? orden.direccion === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none"
+                }
+                className="px-5 py-3 font-semibold"
+              >
+                <button
+                  className="inline-flex items-center gap-1 hover:text-slate-900"
+                  onClick={() => alternarOrden("nombre")}
+                  type="button"
+                >
+                  Producto{" "}
+                  <span aria-hidden="true">
+                    {orden.campo === "nombre"
+                      ? orden.direccion === "asc"
+                        ? "↑"
+                        : "↓"
+                      : "↕"}
+                  </span>
+                </button>
               </th>
-              <th aria-sort={orden.campo === "stock" ? (orden.direccion === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 font-semibold">
-                <button className="inline-flex items-center gap-1 hover:text-slate-900" onClick={() => alternarOrden("stock")} type="button">Disponible <span aria-hidden="true">{orden.campo === "stock" ? (orden.direccion === "asc" ? "↑" : "↓") : "↕"}</span></button>
+              <th
+                aria-sort={
+                  orden.campo === "stock"
+                    ? orden.direccion === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none"
+                }
+                className="px-5 py-3 font-semibold"
+              >
+                <button
+                  className="inline-flex items-center gap-1 hover:text-slate-900"
+                  onClick={() => alternarOrden("stock")}
+                  type="button"
+                >
+                  Disponible{" "}
+                  <span aria-hidden="true">
+                    {orden.campo === "stock"
+                      ? orden.direccion === "asc"
+                        ? "↑"
+                        : "↓"
+                      : "↕"}
+                  </span>
+                </button>
               </th>
               <th className="px-5 py-3 font-semibold">Mínimo</th>
               <th className="px-5 py-3 font-semibold">
-                <label className="flex flex-col gap-1.5">Estado
-                  <select aria-label="Filtrar por estado de stock" className="max-w-40 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium normal-case tracking-normal text-slate-700" onChange={(event) => setEstadoActivo(event.target.value)} value={estadoActivo}>
-                    {estadosStockDemo.map((estado) => <option key={estado.id} value={estado.id}>{estado.nombre}</option>)}
+                <label className="flex flex-col gap-1.5">
+                  Estado
+                  <select
+                    aria-label="Filtrar por estado de stock"
+                    className="max-w-40 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium normal-case tracking-normal text-slate-700"
+                    onChange={(event) => setEstadoActivo(event.target.value)}
+                    value={estadoActivo}
+                  >
+                    {estadosStockDemo.map((estado) => (
+                      <option key={estado.id} value={estado.id}>
+                        {estado.nombre}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </th>
-              <th className="px-5 py-3 font-semibold">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {stockFiltrado.length === 0 ? (
-              <tr><td className="px-5 py-6 text-center text-slate-500" colSpan={5}>No hay productos en esta categoría.</td></tr>
-            ) : stockFiltrado.map((item) => (
-              <tr key={item.id}>
-                <td className="px-5 py-4 font-medium text-slate-800">
-                  {item.nombre}
-                </td>
-                <td className="px-5 py-4 text-slate-700">
-                  {Number.isInteger(item.stockDisponible) ? `${item.stockDisponible} ${item.esSabor ? "porciones" : "unidades"}` : "Sin conteo"}
-                </td>
-                <td className="px-5 py-4">
-                  <input aria-label={`Stock mínimo de ${item.nombre}`} className="w-20 rounded-md border border-slate-300 px-2 py-1.5" min="0" onChange={(event) => setProductos((actuales) => actuales.map((producto) => producto.id === item.id ? { ...producto, stockMinimo: Number(event.target.value) } : producto))} type="number" value={item.stockMinimo ?? 0} />
-                </td>
-                <td className="px-5 py-4">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${{ "agotado": "bg-red-100 text-red-800", "reponer": "bg-red-100 text-red-800", "por-agotarse": "bg-amber-100 text-amber-800", "sin-conteo": "bg-slate-100 text-slate-700", "en-stock": "bg-emerald-100 text-emerald-800" }[obtenerEstadoStockDemo(item)]}`}>
-                    {{ "agotado": "Agotado", "reponer": "Reponer", "por-agotarse": "Por agotarse", "en-stock": "En stock", "sin-conteo": "Cargar stock" }[obtenerEstadoStockDemo(item)]}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <input aria-label={`Porciones para cargar de ${item.nombre}`} className="w-20 rounded-md border border-slate-300 px-2 py-1.5" min="1" onChange={(event) => setCantidadesCarga((actuales) => ({ ...actuales, [item.id]: event.target.value }))} placeholder="Cantidad" type="number" value={cantidadesCarga[item.id] ?? ""} />
-                    <button className="rounded-md border border-emerald-800 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50" onClick={() => { const cantidad = Number(cantidadesCarga[item.id]); if (!Number.isInteger(cantidad) || cantidad < 1) return; setProductos((actuales) => actuales.map((producto) => producto.id === item.id ? { ...producto, stockDisponible: (producto.stockDisponible ?? 0) + cantidad } : producto)); setCantidadesCarga((actuales) => ({ ...actuales, [item.id]: "" })); }} type="button">Cargar stock</button>
-                  </div>
+              <tr>
+                <td
+                  className="px-5 py-6 text-center text-slate-500"
+                  colSpan={4}
+                >
+                  No hay productos en esta categoría.
                 </td>
               </tr>
-            ))}
+            ) : (
+              stockFiltrado.map((item) => (
+                <tr key={item.id}>
+                  <td className="px-5 py-4 font-medium text-slate-800">
+                    {item.nombre}
+                  </td>
+                  <td className="px-5 py-4 text-slate-700">
+                    {Number.isInteger(item.stockDisponible)
+                      ? `${item.stockDisponible} ${item.esSabor ? "porciones" : "unidades"}`
+                      : "Sin conteo"}
+                    {modoInventario === "carga" && <div className="mt-2 grid min-w-44 gap-2">
+                      <label className="text-xs font-medium text-slate-600">Cantidad a agregar<input aria-label={`Cantidad a cargar de ${item.nombre}`} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" min="1" onChange={(event) => setCantidadesCarga((actuales) => ({ ...actuales, [item.id]: event.target.value }))} type="number" value={cantidadesCarga[item.id] ?? ""} /></label>
+                      <label className="text-xs font-medium text-slate-600">Detalle (opcional)<input aria-label={`Detalle de carga de ${item.nombre}`} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" onChange={(event) => setDetallesCarga((actuales) => ({ ...actuales, [item.id]: event.target.value }))} placeholder="Ej.: Reposición proveedor" value={detallesCarga[item.id] ?? ""} /></label>
+                    </div>}
+                  </td>
+                  <td className="px-5 py-4">
+                    {modoInventario === "minimos" ? <input aria-label={`Stock minimo de ${item.nombre}`} className="w-20 rounded-md border border-slate-300 px-2 py-1.5" min="0" onChange={(event) => setMinimosEditados((actuales) => ({ ...actuales, [item.id]: event.target.value }))} type="number" value={minimosEditados[item.id] ?? item.stockMinimo ?? 0} /> : item.stockMinimo ?? 0}
+                  </td>
+                  <td className="px-5 py-4">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${{ agotado: "bg-red-100 text-red-800", reponer: "bg-red-100 text-red-800", "por-agotarse": "bg-amber-100 text-amber-800", "sin-conteo": "bg-slate-100 text-slate-700", "en-stock": "bg-emerald-100 text-emerald-800" }[obtenerEstadoStockDemo(item)]}`}
+                    >
+                      {
+                        {
+                          agotado: "Agotado",
+                          reponer: "Reponer",
+                          "por-agotarse": "Por agotarse",
+                          "en-stock": "En stock",
+                          "sin-conteo": "Cargar stock",
+                        }[obtenerEstadoStockDemo(item)]
+                      }
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
+      {modoInventario && <div className="mt-3 flex justify-end gap-2">
+        <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => { setModoInventario(""); setErrorCarga(""); }} type="button">Cancelar</button>
+        <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white" onClick={modoInventario === "carga" ? confirmarCargas : guardarMinimosDemo} type="button">{modoInventario === "carga" ? "Confirmar cargas" : "Confirmar minimos"}</button>
+      </div>}      <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold text-slate-900">Historial de reposición</h2>
+        {movimientosDemo.length === 0 ? <p className="mt-2 text-sm text-slate-500">Las cargas confirmadas aparecerán aquí con producto, empleado, fecha, cantidad y detalle.</p> : <ul className="mt-3 divide-y divide-slate-100">{movimientosDemo.map((movimiento) => <li className="flex flex-wrap justify-between gap-2 py-3 text-sm" key={movimiento.id}><div><strong>{movimiento.producto}</strong><p className="text-slate-500">{movimiento.empleado} · {new Date(movimiento.fecha).toLocaleString("es-AR")} · {movimiento.detalle}</p></div><span className="font-semibold text-emerald-800">+{movimiento.cantidad} · saldo {movimiento.saldoPosterior}</span></li>)}</ul>}
+      </section>
     </section>
   );
 }
@@ -1327,6 +1667,26 @@ function AdministracionDemo({
   usuarios,
   setUsuarios,
 }) {
+  const [categoriasProductos, setCategoriasProductos] = useState(listarCategoriasProductos);
+  const [categoriasEliminables, setCategoriasEliminables] = useState(() => ({
+    productos: listarCategoriasEliminables("productos"),
+    sabores: listarCategoriasEliminables("sabores"),
+  }));
+  const [categoriasSabores, setCategoriasSabores] = useState(() => {
+    return listarCategoriasSabores();
+  });
+  const [altaCategoriaSabor, setAltaCategoriaSabor] = useState(false);
+  const [nombreCategoriaSabor, setNombreCategoriaSabor] = useState("");
+  const [errorCategoriaSabor, setErrorCategoriaSabor] = useState("");
+  const [modalCategoriaAbierto, setModalCategoriaAbierto] = useState(false);
+  const [modalBorrarCategoriasAbierto, setModalBorrarCategoriasAbierto] = useState(false);
+  const [nombreCategoria, setNombreCategoria] = useState("");
+  const [tipoCategoria, setTipoCategoria] = useState("productos");
+  const [tipoCategoriaEliminar, setTipoCategoriaEliminar] = useState("productos");
+  const [categoriasEliminarSeleccionadas, setCategoriasEliminarSeleccionadas] = useState([]);
+  const [errorCategoria, setErrorCategoria] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("todos");
+  const [busquedaCatalogo, setBusquedaCatalogo] = useState("");
   const [modalProductoAbierto, setModalProductoAbierto] = useState(false);
   const [productoEditando, setProductoEditando] = useState("");
   const [formularioProducto, setFormularioProducto] = useState(
@@ -1336,6 +1696,8 @@ function AdministracionDemo({
   const [mensajeProducto, setMensajeProducto] = useState("");
   const [nuevoUsuario, setNuevoUsuario] = useState({
     nombre: "",
+    apellido: "",
+    dni: "",
     email: "",
     password: "",
     rol: "Cajero",
@@ -1343,9 +1705,64 @@ function AdministracionDemo({
   const [errorUsuario, setErrorUsuario] = useState("");
   const [usuarioCreado, setUsuarioCreado] = useState("");
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(false);
-  const productosVisibles = mostrarTodosProductos
-    ? productos
-    : productos.slice(0, 6);
+  const productosFiltrados = productos.filter((producto) => {
+    const coincideCategoria = categoriaFiltro === "todos" || producto.categoria === categoriaFiltro;
+    const termino = busquedaCatalogo.trim().toLocaleLowerCase("es");
+    return coincideCategoria && (!termino || `${producto.nombre} ${producto.detalle ?? ""}`.toLocaleLowerCase("es").includes(termino));
+  });
+  const productosVisibles = mostrarTodosProductos ? productosFiltrados : productosFiltrados.slice(0, 6);
+
+  function guardarCategoriaDemo(event) {
+    event.preventDefault();
+    setErrorCategoria("");
+    try {
+      const creada = crearCategoriaCatalogo(nombreCategoria, tipoCategoria);
+      if (tipoCategoria === "sabores") {
+        setCategoriasSabores((actuales) => [...actuales, creada]);
+        setCategoriasEliminables((actuales) => ({ ...actuales, sabores: [...actuales.sabores, creada] }));
+      } else {
+        setCategoriasProductos((actuales) => [...actuales, creada]);
+        setCategoriasEliminables((actuales) => ({ ...actuales, productos: [...actuales.productos, creada] }));
+      }
+      setNombreCategoria("");
+      setModalCategoriaAbierto(false);
+    } catch (err) {
+      setErrorCategoria(err instanceof Error ? err.message : "No se pudo guardar la categoría.");
+    }
+  }
+
+  function eliminarCategoriasDemo() {
+    const esSabor = tipoCategoriaEliminar === "sabores";
+    try {
+      eliminarCategoriasCatalogo(categoriasEliminarSeleccionadas, tipoCategoriaEliminar);
+      if (esSabor) {
+        setCategoriasSabores((actuales) => actuales.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)));
+        setCategoriasEliminables((actuales) => ({ ...actuales, sabores: actuales.sabores.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)) }));
+      } else {
+        setCategoriasProductos((actuales) => actuales.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)));
+        setCategoriasEliminables((actuales) => ({ ...actuales, productos: actuales.productos.filter((categoria) => !categoriasEliminarSeleccionadas.includes(categoria.id)) }));
+      }
+      setCategoriasEliminarSeleccionadas([]);
+      setErrorCategoria("");
+      setModalBorrarCategoriasAbierto(false);
+    } catch (err) {
+      setErrorCategoria(err instanceof Error ? err.message : "No se pudo eliminar la categoría.");
+    }
+  }
+
+  function agregarCategoriaSaborDemo() {
+    setErrorCategoriaSabor("");
+    try {
+      const creada = crearCategoriaCatalogo(nombreCategoriaSabor, "sabores");
+      setCategoriasSabores((actuales) => [...actuales, creada]);
+      setCategoriasEliminables((actuales) => ({ ...actuales, sabores: [...actuales.sabores, creada] }));
+      setFormularioProducto((actual) => ({ ...actual, categoriaSabor: creada.id }));
+      setNombreCategoriaSabor("");
+      setAltaCategoriaSabor(false);
+    } catch (err) {
+      setErrorCategoriaSabor(err instanceof Error ? err.message : "No se pudo crear la categoría.");
+    }
+  }
 
   useEffect(() => {
     if (!modalProductoAbierto) return undefined;
@@ -1367,16 +1784,23 @@ function AdministracionDemo({
     setModalProductoAbierto(true);
     setProductoEditando(producto.id);
     setFormularioProducto({
-      nombre: producto.configuracionVenta ? producto.nombre.replace(/^Cucurucho\s*/i, "") : producto.nombre,
-      categoria: producto.configuracionVenta || producto.esSabor ? "helados" : producto.categoria,
+      nombre: producto.configuracionVenta
+        ? producto.nombre.replace(/^Cucurucho\s*/i, "")
+        : producto.nombre,
+      categoria:
+        producto.configuracionVenta || producto.esSabor
+          ? "helados"
+          : producto.categoria,
       precio: String(producto.precio),
-      costo: producto.costo === undefined ? "" : String(producto.costo),
       detalle: producto.detalle ?? "",
       imagenUrl: producto.imagenUrl ?? "",
       esSabor: producto.esSabor ?? false,
+      categoriaSabor: producto.categoriaSabor ?? "",
       tipoCucurucho: Boolean(producto.configuracionVenta),
       configurarSabores: Boolean(producto.configuracionVenta),
-      cantidadSabores: String(producto.configuracionVenta?.cantidadSabores ?? 1),
+      cantidadSabores: String(
+        producto.configuracionVenta?.cantidadSabores ?? 1,
+      ),
       stockMinimo: String(producto.stockMinimo ?? 3),
     });
     setErrorProducto("");
@@ -1401,8 +1825,16 @@ function AdministracionDemo({
       : Number(formularioProducto.precio);
     const imagenUrl = formularioProducto.imagenUrl.trim();
 
-    const costo = formularioProducto.costo === "" ? undefined : Number(formularioProducto.costo);
-    if (!nombre || !Number.isFinite(precio) || precio <= 0 || (costo !== undefined && (!Number.isFinite(costo) || costo < 0))) {
+    if (formularioProducto.esSabor && !formularioProducto.categoriaSabor) {
+      setErrorProducto("Selecciona o crea una categoría para este insumo de sabor.");
+      return;
+    }
+
+    if (
+      !nombre ||
+      !Number.isFinite(precio) ||
+      precio <= 0
+    ) {
       setErrorProducto("Ingresa un nombre y un precio mayor que cero.");
       return;
     }
@@ -1419,22 +1851,33 @@ function AdministracionDemo({
     }
 
     const producto = {
-      ...(productoEditando ? productos.find((item) => item.id === productoEditando) : {}),
+      ...(productoEditando
+        ? productos.find((item) => item.id === productoEditando)
+        : {}),
       id: productoEditando || `demo-producto-${globalThis.crypto.randomUUID()}`,
       nombre: formularioProducto.tipoCucurucho ? `Cucurucho ${nombre}` : nombre,
-      categoria: formularioProducto.tipoCucurucho || formularioProducto.esSabor ? "helados" : formularioProducto.categoria,
+      categoria:
+        formularioProducto.tipoCucurucho || formularioProducto.esSabor
+          ? "helados"
+          : formularioProducto.categoria,
       precio,
-      costo,
       detalle: formularioProducto.detalle.trim(),
       imagenUrl,
       esSabor: formularioProducto.esSabor,
-      controlaStock: !formularioProducto.configurarSabores || formularioProducto.esSabor,
-      stockMinimo: (!formularioProducto.configurarSabores || formularioProducto.esSabor) ? Number(formularioProducto.stockMinimo) : undefined,
-      configuracionVenta: formularioProducto.configurarSabores ? {
-        tipo: "sabores",
-        cantidadSabores: Number(formularioProducto.cantidadSabores),
-        permitirRepetidos: true,
-      } : null,
+      categoriaSabor: formularioProducto.esSabor ? formularioProducto.categoriaSabor : undefined,
+      controlaStock:
+        !formularioProducto.configurarSabores || formularioProducto.esSabor,
+      stockMinimo:
+        !formularioProducto.configurarSabores || formularioProducto.esSabor
+          ? Number(formularioProducto.stockMinimo)
+          : undefined,
+      configuracionVenta: formularioProducto.configurarSabores
+        ? {
+            tipo: "sabores",
+            cantidadSabores: Number(formularioProducto.cantidadSabores),
+            permitirRepetidos: true,
+          }
+        : null,
     };
 
     if (productoEditando) {
@@ -1460,6 +1903,7 @@ function AdministracionDemo({
     setUsuarioCreado("");
 
     const nombre = nuevoUsuario.nombre.trim();
+    const apellido = nuevoUsuario.apellido.trim();
     const email = nuevoUsuario.email.trim();
     const emailNormalizado = email.toLocaleLowerCase("es");
 
@@ -1477,11 +1921,13 @@ function AdministracionDemo({
       {
         id: `demo-usuario-${globalThis.crypto.randomUUID()}`,
         nombre,
+        apellido,
+        dni: nuevoUsuario.dni,
         email,
         rol: nuevoUsuario.rol,
       },
     ]);
-    setNuevoUsuario({ nombre: "", email: "", password: "", rol: "Cajero" });
+    setNuevoUsuario({ nombre: "", apellido: "", dni: "", email: "", password: "", rol: "Cajero" });
     setUsuarioCreado(`Se agregó la cuenta demostrativa de ${nombre}.`);
   }
 
@@ -1509,10 +1955,60 @@ function AdministracionDemo({
         </p>
       )}
       <div className="mt-6 flex flex-wrap gap-2">
-        <button className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900" onClick={() => { setProductoEditando(""); setFormularioProducto({ ...formularioProductoDemoVacio, esSabor: true, precio: "1" }); setErrorProducto(""); setMensajeProducto(""); setModalProductoAbierto(true); }} type="button">Agregar sabor</button>
-        <button className="rounded-lg border border-emerald-800 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50" onClick={() => { setProductoEditando(""); setFormularioProducto({ ...formularioProductoDemoVacio, tipoCucurucho: true, configurarSabores: true }); setErrorProducto(""); setMensajeProducto(""); setModalProductoAbierto(true); }} type="button">Agregar tipo de cucurucho</button>
-        <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setProductoEditando(""); setFormularioProducto(formularioProductoDemoVacio); setErrorProducto(""); setMensajeProducto(""); setModalProductoAbierto(true); }} type="button">Agregar otro producto</button>
+        <button
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          onClick={() => { setErrorCategoria(""); setModalCategoriaAbierto(true); }}
+          type="button"
+        >
+          Agregar nueva categoría
+        </button>
+        <button
+          className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900"
+          onClick={() => {
+            setProductoEditando("");
+            setFormularioProducto(formularioProductoDemoVacio);
+            setErrorProducto("");
+            setMensajeProducto("");
+            setModalProductoAbierto(true);
+          }}
+          type="button"
+        >
+          Agregar nuevo producto
+        </button>
+        <button className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50" onClick={() => { setErrorCategoria(""); setModalBorrarCategoriasAbierto(true); }} type="button">Borrar categorías</button>
       </div>
+      {modalCategoriaAbierto && (
+        <form className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]" onSubmit={guardarCategoriaDemo}>
+          <label className="text-sm font-medium text-slate-700">Tipo de categoría
+            <select className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" onChange={(event) => setTipoCategoria(event.target.value)} value={tipoCategoria}>
+              <option value="productos">Productos del catálogo</option><option value="sabores">Categoría de sabores</option>
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">Nombre
+            <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" maxLength={60} minLength={2} onChange={(event) => setNombreCategoria(event.target.value)} required value={nombreCategoria} />
+          </label>
+          <div className="flex items-end gap-2"><button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white" type="submit">Guardar categoría</button><button className="rounded-lg border px-4 py-2 text-sm" onClick={() => setModalCategoriaAbierto(false)} type="button">Cancelar</button></div>
+          {errorCategoria && <p className="text-sm text-red-700 sm:col-span-3" role="alert">{errorCategoria}</p>}
+          {tipoCategoria === "sabores" && <p className="text-sm text-slate-500 sm:col-span-3">Luego agrega cada sabor como producto; el sabor aparecerá como subcategoría para elegir en ventas.</p>}
+        </form>
+      )}
+      {modalBorrarCategoriasAbierto && (
+        <div className="mt-4 grid gap-3 rounded-xl border border-red-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]">
+          <label className="text-sm font-medium text-slate-700">Tipo de categoría
+            <select className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" onChange={(event) => { setTipoCategoriaEliminar(event.target.value); setCategoriasEliminarSeleccionadas([]); setErrorCategoria(""); }} value={tipoCategoriaEliminar}>
+              <option value="productos">Categorías de productos (Ventas / Inventario)</option><option value="sabores">Categorías de insumos (sabores)</option>
+            </select>
+          </label>
+          <div className="max-h-72 overflow-auto rounded-lg border border-slate-200 sm:col-span-2">
+            <table className="w-full text-left text-sm"><thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th className="w-12 px-3 py-2"><input aria-label="Seleccionar todas las categorías" checked={categoriasEliminables[tipoCategoriaEliminar].length > 0 && categoriasEliminarSeleccionadas.length === categoriasEliminables[tipoCategoriaEliminar].length} onChange={(event) => setCategoriasEliminarSeleccionadas(event.target.checked ? categoriasEliminables[tipoCategoriaEliminar].map(({ id }) => id) : [])} type="checkbox" /></th><th className="px-3 py-2">Categoría</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">{categoriasEliminables[tipoCategoriaEliminar].map((categoria) => <tr key={categoria.id}><td className="px-3 py-2"><input aria-label={`Seleccionar ${categoria.nombre}`} checked={categoriasEliminarSeleccionadas.includes(categoria.id)} onChange={(event) => setCategoriasEliminarSeleccionadas((actuales) => event.target.checked ? [...actuales, categoria.id] : actuales.filter((id) => id !== categoria.id))} type="checkbox" /></td><td className="px-3 py-2">{categoria.nombre}</td></tr>)}{categoriasEliminables[tipoCategoriaEliminar].length === 0 && <tr><td className="px-3 py-4 text-slate-500" colSpan="2">No hay categorías disponibles.</td></tr>}</tbody>
+            </table>
+          </div>
+          <div className="flex items-end gap-2"><button className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!categoriasEliminarSeleccionadas.length} onClick={eliminarCategoriasDemo} type="button">Borrar seleccionadas ({categoriasEliminarSeleccionadas.length})</button><button className="rounded-lg border px-4 py-2 text-sm" onClick={() => setModalBorrarCategoriasAbierto(false)} type="button">Cancelar</button></div>
+          {tipoCategoriaEliminar === "productos" && <p className="text-xs text-slate-500 sm:col-span-3">Los productos existentes se conservan y aparecen sin categoría; podrás reasignarlos al editarlos.</p>}
+          {errorCategoria && <p className="text-sm text-red-700 sm:col-span-3" role="alert">{errorCategoria}</p>}
+        </div>
+      )}
       {modalProductoAbierto && (
         <>
           <div
@@ -1534,7 +2030,13 @@ function AdministracionDemo({
               className="text-lg font-semibold text-slate-900 sm:col-span-2"
               id="demo-product-form-title"
             >
-              {productoEditando ? "Editar producto" : formularioProducto.tipoCucurucho ? "Agregar tipo de cucurucho" : formularioProducto.esSabor ? "Agregar sabor" : "Agregar producto"}
+              {productoEditando
+                ? "Editar producto"
+                : formularioProducto.tipoCucurucho
+                  ? "Agregar tipo de cucurucho"
+                  : formularioProducto.esSabor
+                    ? "Agregar sabor"
+                    : "Agregar producto"}
             </h2>
             {errorProducto && (
               <p
@@ -1548,12 +2050,22 @@ function AdministracionDemo({
               className="text-sm font-medium text-slate-700"
               htmlFor="demo-product-name"
             >
-              {formularioProducto.tipoCucurucho ? "Diferenciación" : formularioProducto.esSabor ? "Nombre del sabor" : "Nombre"}
+              {formularioProducto.tipoCucurucho
+                ? "Diferenciación"
+                  : formularioProducto.esSabor
+                    ? "Nombre del sabor final"
+                  : "Nombre"}
               <input
                 className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
                 id="demo-product-name"
                 maxLength={120}
-                placeholder={formularioProducto.tipoCucurucho ? "Simple, bañado en chocolate…" : formularioProducto.esSabor ? "Vainilla, chocolate…" : ""}
+                placeholder={
+                  formularioProducto.tipoCucurucho
+                    ? "Simple, bañado en chocolate…"
+                    : formularioProducto.esSabor
+                      ? "Vainilla, chocolate…"
+                      : ""
+                }
                 onChange={(event) =>
                   setFormularioProducto({
                     ...formularioProducto,
@@ -1564,67 +2076,129 @@ function AdministracionDemo({
                 value={formularioProducto.nombre}
               />
             </label>
-            {!formularioProducto.tipoCucurucho && !formularioProducto.esSabor && <label
-              className="text-sm font-medium text-slate-700"
-              htmlFor="demo-product-category"
-            >
-              Categoría
-              <select
-                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
-                id="demo-product-category"
-                onChange={(event) =>
-                  setFormularioProducto({
-                    ...formularioProducto,
-                    categoria: event.target.value,
-                  })
-                }
-                value={formularioProducto.categoria}
+            {!formularioProducto.tipoCucurucho &&
+              !formularioProducto.esSabor && (
+                <label
+                  className="text-sm font-medium text-slate-700"
+                  htmlFor="demo-product-category"
+                >
+                  Categoría
+                  <select
+                    className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                    id="demo-product-category"
+                    onChange={(event) =>
+                      setFormularioProducto({
+                        ...formularioProducto,
+                        categoria: event.target.value,
+                      })
+                    }
+                    value={formularioProducto.categoria}
+                  >
+                    {!categoriasProductos.some(({ id }) => id === formularioProducto.categoria) && <option value={formularioProducto.categoria}>Categoría archivada (reasignar)</option>}
+                    {categoriasProductos.map((categoria) => (
+                        <option key={categoria.id} value={categoria.id}>
+                          {categoria.nombre}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+            {!formularioProducto.tipoCucurucho && formularioProducto.categoria === "helados" && !formularioProducto.esSabor && (
+              <label className="flex items-start gap-3 text-sm font-medium text-slate-700 sm:col-span-2">
+                <input checked={formularioProducto.esSabor} className="mt-0.5 accent-emerald-800" onChange={(event) => setFormularioProducto({ ...formularioProducto, esSabor: event.target.checked, categoriaSabor: "" })} type="checkbox" />
+                Este producto es un insumo de sabor para preparar cucuruchos
+              </label>
+            )}
+            {formularioProducto.esSabor && (
+              <label className="text-sm font-medium text-slate-700" htmlFor="demo-flavor-category">
+                Categoría del sabor
+                <select className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal" id="demo-flavor-category" onChange={(event) => setFormularioProducto({ ...formularioProducto, categoriaSabor: event.target.value })} required value={formularioProducto.categoriaSabor}>
+                  <option value="">Selecciona una categoría</option>
+                  {formularioProducto.categoriaSabor && !categoriasSabores.some(({ id }) => id === formularioProducto.categoriaSabor) && <option value={formularioProducto.categoriaSabor}>Categoría archivada (reasignar)</option>}
+                  {categoriasSabores.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
+                </select>
+                {!altaCategoriaSabor ? <button className="mt-2 block text-sm font-semibold text-emerald-800 underline" onClick={() => { setAltaCategoriaSabor(true); setErrorCategoriaSabor(""); }} type="button">+ Crear categoría</button> : (
+                  <span className="mt-2 flex flex-wrap gap-2">
+                    <input aria-label="Nombre de la categoría de sabor" autoFocus className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 font-normal" maxLength={60} minLength={2} onChange={(event) => setNombreCategoriaSabor(event.target.value)} placeholder="Ej.: Chocolates" value={nombreCategoriaSabor} />
+                    <button className="rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white" onClick={agregarCategoriaSaborDemo} type="button">Guardar</button>
+                    <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setAltaCategoriaSabor(false)} type="button">Cancelar</button>
+                    {errorCategoriaSabor && <span className="w-full text-sm text-red-700" role="alert">{errorCategoriaSabor}</span>}
+                  </span>
+                )}
+                <span className="mt-1 block text-xs font-normal text-slate-500">El nombre del sabor será una opción dentro de esta categoría en ventas.</span>
+              </label>
+            )}
+            {!formularioProducto.esSabor && (
+              <label
+                className="text-sm font-medium text-slate-700"
+                htmlFor="demo-product-price"
               >
-                {categorias
-                  .filter(({ id }) => id !== "todos")
-                  .map((categoria) => (
-                    <option key={categoria.id} value={categoria.id}>
-                      {categoria.nombre}
-                    </option>
-                  ))}
-              </select>
-            </label>}
-            {!formularioProducto.esSabor && <label
-              className="text-sm font-medium text-slate-700"
-              htmlFor="demo-product-price"
-            >
-              {formularioProducto.tipoCucurucho ? "Precio del cucurucho" : "Precio"}
-              <input
-                className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
-                id="demo-product-price"
-                min="1"
-                onChange={(event) =>
-                  setFormularioProducto({
-                    ...formularioProducto,
-                    precio: event.target.value,
-                  })
-                }
-                required
-                step="1"
-                type="number"
-                value={formularioProducto.precio}
-              />
-            </label>}
-            <label className="text-sm font-medium text-slate-700" htmlFor="demo-product-cost">
-              {formularioProducto.esSabor ? "Costo por porción" : formularioProducto.tipoCucurucho ? "Costo base del cucurucho" : "Costo unitario"}
-              <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-product-cost" min="0" onChange={(event) => setFormularioProducto({ ...formularioProducto, costo: event.target.value })} placeholder="Opcional" step="0.01" type="number" value={formularioProducto.costo} />
-              <span className="mt-1 block text-xs font-normal text-slate-500">Sirve para estimar la ganancia bruta. En sabores, usa el costo de una bocha.</span>
-            </label>
-            {(formularioProducto.esSabor || (!formularioProducto.configurarSabores && !formularioProducto.tipoCucurucho)) && (
-              <label className="text-sm font-medium text-slate-700" htmlFor="demo-flavor-minimum">
-                {formularioProducto.esSabor ? "Stock mínimo requerido (porciones)" : "Stock mínimo requerido (unidades)"}
-                <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-flavor-minimum" min="0" onChange={(event) => setFormularioProducto({ ...formularioProducto, stockMinimo: event.target.value })} type="number" value={formularioProducto.stockMinimo} />
+                {formularioProducto.tipoCucurucho
+                  ? "Precio del cucurucho"
+                  : "Precio"}
+                <input
+                  className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+                  id="demo-product-price"
+                  min="1"
+                  onChange={(event) =>
+                    setFormularioProducto({
+                      ...formularioProducto,
+                      precio: event.target.value,
+                    })
+                  }
+                  required
+                  step="1"
+                  type="number"
+                  value={formularioProducto.precio}
+                />
+              </label>
+            )}
+            {(formularioProducto.esSabor ||
+              (!formularioProducto.configurarSabores &&
+                !formularioProducto.tipoCucurucho)) && (
+              <label
+                className="text-sm font-medium text-slate-700"
+                htmlFor="demo-flavor-minimum"
+              >
+                {formularioProducto.esSabor
+                  ? "Stock mínimo requerido (porciones)"
+                  : "Stock mínimo requerido (unidades)"}
+                <input
+                  className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+                  id="demo-flavor-minimum"
+                  min="0"
+                  onChange={(event) =>
+                    setFormularioProducto({
+                      ...formularioProducto,
+                      stockMinimo: event.target.value,
+                    })
+                  }
+                  type="number"
+                  value={formularioProducto.stockMinimo}
+                />
               </label>
             )}
             {formularioProducto.tipoCucurucho && (
-              <label className="text-sm font-medium text-slate-700" htmlFor="demo-cone-scoops">
+              <label
+                className="text-sm font-medium text-slate-700"
+                htmlFor="demo-cone-scoops"
+              >
                 Bochas disponibles al vender
-                <input className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-cone-scoops" max="6" min="1" onChange={(event) => setFormularioProducto({ ...formularioProducto, cantidadSabores: event.target.value })} required type="number" value={formularioProducto.cantidadSabores} />
+                <input
+                  className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
+                  id="demo-cone-scoops"
+                  max="6"
+                  min="1"
+                  onChange={(event) =>
+                    setFormularioProducto({
+                      ...formularioProducto,
+                      cantidadSabores: event.target.value,
+                    })
+                  }
+                  required
+                  type="number"
+                  value={formularioProducto.cantidadSabores}
+                />
               </label>
             )}
             <label
@@ -1698,8 +2272,18 @@ function AdministracionDemo({
         <h2 className="text-lg font-semibold text-slate-900">
           Catálogo ({productos.length})
         </h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-medium text-slate-700">Categoría
+            <select className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" onChange={(event) => { setCategoriaFiltro(event.target.value); setMostrarTodosProductos(false); }} value={categoriaFiltro}>
+              <option value="todos">Todas las categorías</option>{categoriasProductos.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">Buscar producto
+            <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onChange={(event) => { setBusquedaCatalogo(event.target.value); setMostrarTodosProductos(false); }} placeholder="Nombre o descripción" value={busquedaCatalogo} />
+          </label>
+        </div>
         <ul className="mt-3 divide-y divide-slate-100">
-          {productosVisibles.map((producto) => (
+          {productosVisibles.length === 0 ? <li className="py-5 text-sm text-slate-500">No hay productos que coincidan con la búsqueda.</li> : productosVisibles.map((producto) => (
             <li
               className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
               key={producto.id}
@@ -1726,7 +2310,9 @@ function AdministracionDemo({
                     {producto.detalle || "Sin descripción"}
                   </p>
                   <p className="mt-1 font-semibold text-slate-900">
-                    {producto.esSabor ? "Sabor (insumo)" : formatearPrecio(producto.precio)}
+                    {producto.esSabor
+                      ? "Sabor (insumo)"
+                      : formatearPrecio(producto.precio)}
                   </p>
                 </div>
               </div>
@@ -1740,7 +2326,7 @@ function AdministracionDemo({
             </li>
           ))}
         </ul>
-        {productos.length > 6 && (
+        {productosFiltrados.length > 6 && (
           <button
             aria-expanded={mostrarTodosProductos}
             className="mt-4 rounded-lg border border-emerald-800 px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
@@ -1779,6 +2365,10 @@ function AdministracionDemo({
           className="mt-4 grid gap-4 rounded-lg border border-slate-200 p-4 sm:grid-cols-2"
           onSubmit={crearUsuarioDemo}
         >
+          <label className="text-sm font-medium text-slate-700" htmlFor="demo-user-surname">
+            Apellido
+            <input autoComplete="family-name" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-user-surname" onChange={(event) => setNuevoUsuario({ ...nuevoUsuario, apellido: event.target.value })} required value={nuevoUsuario.apellido} />
+          </label>
           <label
             className="text-sm font-medium text-slate-700"
             htmlFor="demo-user-name"
@@ -1794,6 +2384,10 @@ function AdministracionDemo({
               required
               value={nuevoUsuario.nombre}
             />
+          </label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="demo-user-dni">
+            DNI
+            <input autoComplete="off" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" id="demo-user-dni" inputMode="numeric" onChange={(event) => setNuevoUsuario({ ...nuevoUsuario, dni: event.target.value.replace(/\D/g, "") })} required value={nuevoUsuario.dni} />
           </label>
           <label
             className="text-sm font-medium text-slate-700"
@@ -1816,7 +2410,7 @@ function AdministracionDemo({
             className="text-sm font-medium text-slate-700"
             htmlFor="demo-user-password"
           >
-            Contraseña inicial
+            Contraseña
             <input
               autoComplete="new-password"
               className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
@@ -1845,7 +2439,7 @@ function AdministracionDemo({
               }
               value={nuevoUsuario.rol}
             >
-              <option value="Cajero">Cajero</option>
+              <option value="Cajero">Empleado</option>
               <option value="Administrador">Administrador</option>
             </select>
           </label>
@@ -1868,7 +2462,7 @@ function AdministracionDemo({
               key={usuario.id}
             >
               <span>
-                <strong>{usuario.nombre}</strong>
+                <strong>{usuario.apellido ? `${usuario.apellido}, ${usuario.nombre}` : usuario.nombre}</strong>
                 <span className="ml-3 text-slate-500">{usuario.email}</span>
               </span>
               <span className="font-medium text-emerald-800">

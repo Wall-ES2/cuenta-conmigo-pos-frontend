@@ -1,4 +1,5 @@
 import { formatearPrecio } from "../data/productos";
+import { listarCategoriasProductos } from "../../administracion/services/categoriasCatalogo.js";
 
 const nombresCategorias = {
   helados: "Helados",
@@ -11,6 +12,9 @@ const nombresCategorias = {
 };
 
 function ProductoCard({ producto, onAgregar }) {
+  const categoriaNombre = listarCategoriasProductos().find(
+    (categoria) => categoria.id === producto.categoria,
+  )?.nombre;
   const sinStock =
     (producto.controlaStock || producto.esSabor) &&
     (!Number.isInteger(producto.stockDisponible) ||
@@ -33,7 +37,7 @@ function ProductoCard({ producto, onAgregar }) {
       </span>
       <span className="sales-product-copy">
         <span className="sales-product-category">
-          {nombresCategorias[producto.categoria] ?? producto.categoria}
+          {categoriaNombre ?? (nombresCategorias[producto.categoria] ? "Categoría archivada" : "Sin categoría")}
         </span>
         <span className="sales-product-name">{producto.nombre}</span>
         <span className="sales-product-detail">{producto.detalle}</span>

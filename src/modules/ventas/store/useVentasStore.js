@@ -13,7 +13,6 @@ import {
 import { listarProductosApi } from "../../administracion/services/productosApi.js";
 import {
   calcularConsumoSabores,
-  calcularCostoUnitarioVenta,
   crearClaveLineaVenta,
   validarDisponibilidadSaboresEnCarrito,
   normalizarConfiguracionVenta,
@@ -38,7 +37,11 @@ function validarProducto(producto) {
     throw new Error("El producto debe tener un nombre.");
   }
 
-  if (!categoriasValidas.has(producto.categoria)) {
+  if (
+    !categoriasValidas.has(producto.categoria) &&
+    (typeof producto.categoria !== "string" ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(producto.categoria))
+  ) {
     throw new Error("Selecciona una categoría válida para el producto.");
   }
 
@@ -189,11 +192,21 @@ export const useVentasStore = create((set, get) => ({
 
   cargarCatalogoDesdeApi: async () => {
     try {
-      const productos = await listarProductosApi();
-      const ventasPendientes = await ventasDatabase.ventas
-        .where("estado")
-        .equals("pendiente")
-        .toArray();
+      const [productosApi, ventasPendientes, productosLocales] = await Promise.all([
+        listarProductosApi(),
+        ventasDatabase.ventas.where("estado").equals("pendiente").toArray(),
+        ventasDatabase.productos.toArray(),
+      ]);
+      const metadataLocal = new Map(
+        productosLocales.map((producto) => [producto.id, producto]),
+      );
+      const productos = productosApi.map((producto) => {
+        const local = metadataLocal.get(producto.id);
+        return {
+          ...producto,
+          categoriaSabor: producto.categoriaSabor ?? local?.categoriaSabor ?? "",
+        };
+      });
       const consumoPendiente = calcularConsumoSabores(
         ventasPendientes.flatMap((venta) => venta.items),
         productos,
@@ -454,7 +467,6 @@ export const useVentasStore = create((set, get) => ({
       id: globalThis.crypto.randomUUID(),
       items: carrito.map((linea) => {
         const sabores = linea.sabores ?? [];
-        const costoUnitario = calcularCostoUnitarioVenta({ producto: linea, productos, sabores });
         return {
           productoId: linea.id,
           nombre: linea.nombre,
@@ -463,7 +475,6 @@ export const useVentasStore = create((set, get) => ({
           cantidad: linea.cantidad,
           totalLinea: linea.precio * linea.cantidad,
           sabores,
-          ...(costoUnitario === undefined ? {} : { costoUnitario }),
         };
       }),
       total: carrito.reduce(

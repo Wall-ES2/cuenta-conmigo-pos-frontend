@@ -73,7 +73,7 @@ describe('calcularReporteVentas', () => {
     assert.deepEqual(reporte.ventasRecientes, [])
   })
 
-  it('calcula facturación histórica y ganancia bruta cuando hay costos guardados', () => {
+  it('calcula facturacion historica sin exponer estimaciones de costos', () => {
     const reporte = calcularReporteVentas([
       crearVenta({
         id: 'venta-con-costo',
@@ -84,9 +84,9 @@ describe('calcularReporteVentas', () => {
     ], new Date(2026, 9, 6, 12), 1)
 
     assert.equal(reporte.totalFacturadoHistorico, 3000)
-    assert.equal(reporte.costoMercaderia, 1400)
-    assert.equal(reporte.gananciaBruta, 1600)
-    assert.equal(reporte.margenBrutoPorcentaje, 1600 / 3000 * 100)
+    assert.equal(Object.hasOwn(reporte, 'costoMercaderia'), false)
+    assert.equal(Object.hasOwn(reporte, 'gananciaBruta'), false)
+    assert.equal(Object.hasOwn(reporte, 'margenBrutoPorcentaje'), false)
   })
 
   it('informa datos corruptos en lugar de omitirlos silenciosamente', () => {

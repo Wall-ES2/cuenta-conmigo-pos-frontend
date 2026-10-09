@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import CarritoVentas from "./components/CarritoVentas";
 import ConfiguradorSaboresModal from "./components/ConfiguradorSaboresModal";
 import ProductoCard from "./components/ProductoCard";
-import { categorias, formatearPrecio } from "./data/productos";
+import { formatearPrecio } from "./data/productos";
+import { listarCategoriasProductos } from "../administracion/services/categoriasCatalogo.js";
 import { metodosPago } from "./data/metodosPago";
 import { useVentasStore } from "./store/useVentasStore";
 import "./ventas.css";
@@ -17,6 +18,10 @@ function VentasPage() {
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const productos = useVentasStore((state) => state.productos);
+  const categoriasConProductos = [
+    { id: "todos", nombre: "Todos" },
+    ...listarCategoriasProductos(),
+  ];
   const carrito = useVentasStore((state) => state.carrito);
   const inicializado = useVentasStore((state) => state.inicializado);
   const errorAlmacenamiento = useVentasStore(
@@ -221,7 +226,7 @@ function VentasPage() {
                 aria-label="Categorías de productos"
                 className="sales-categories"
               >
-                {categorias.map((categoria) => (
+                {categoriasConProductos.map((categoria) => (
                   <button
                     aria-pressed={categoriaActiva === categoria.id}
                     className="sales-category-button"

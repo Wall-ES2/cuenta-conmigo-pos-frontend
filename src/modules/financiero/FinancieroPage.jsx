@@ -74,9 +74,13 @@ function FinancieroPage() {
     cargarVentasLocales()
       .then((ventas) => {
         if (activo) {
+          const fechaBase = fechaFinReporte ? new Date(`${fechaFinReporte}T12:00:00`) : new Date();
+          if (!fechaFinReporte && PERIODOS_REPORTE[periodo].desplazamiento) {
+            fechaBase.setDate(fechaBase.getDate() + PERIODOS_REPORTE[periodo].desplazamiento);
+          }
           const resumen = calcularReporteVentas(
             ventas,
-            fechaFinReporte ? new Date(`${fechaFinReporte}T12:00:00`) : new Date(),
+            fechaBase,
             diasRango ? diasRango : fechaEspecifica ? 1 : PERIODOS_REPORTE[periodo].dias,
           );
           setReporte(resumen);
@@ -210,7 +214,7 @@ function FinancieroPage() {
       ) : (
         reporte && (
           <>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <TarjetaIndicador
                 detalle={etiquetaPeriodo}
                 etiqueta={categoriaGrafico === "todas" ? "Total vendido" : "Total vendido · " + categoriaSeleccionada}
@@ -220,16 +224,6 @@ function FinancieroPage() {
                 detalle="Suma de todas las ventas guardadas"
                 etiqueta="Total histórico vendido"
                 valor={formatearPrecio(reporte.totalFacturadoHistorico)}
-              />
-              <TarjetaIndicador
-                detalle={reporte.gananciaBruta === null ? `${reporte.unidadesSinCosto} unidades sin costo registrado` : "Ventas menos costo de productos e insumos"}
-                etiqueta="Ganancia bruta estimada"
-                valor={reporte.gananciaBruta === null ? "Faltan costos" : formatearPrecio(reporte.gananciaBruta)}
-              />
-              <TarjetaIndicador
-                detalle={reporte.margenBrutoPorcentaje === null ? "Disponible al completar los costos" : "Sobre el total vendido"}
-                etiqueta="Margen bruto"
-                valor={reporte.margenBrutoPorcentaje === null ? "—" : `${reporte.margenBrutoPorcentaje.toFixed(1)}%`}
               />
               <TarjetaIndicador
                 etiqueta={categoriaGrafico === "todas" ? "Ventas registradas" : "Ventas registradas · " + categoriaSeleccionada}
