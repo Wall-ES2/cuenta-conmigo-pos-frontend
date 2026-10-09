@@ -45,6 +45,7 @@ const productosDemo = [
     controlaStock: true,
     stockDisponible: 8,
     stockMinimo: 3,
+    categoriaSabor: "cremas",
   },
   {
     id: "demo-sabor-chocolate",
@@ -57,6 +58,98 @@ const productosDemo = [
     controlaStock: true,
     stockDisponible: 6,
     stockMinimo: 3,
+    categoriaSabor: "chocolates",
+  },
+  {
+    id: "demo-sabor-chocolate-almendras",
+    nombre: "Chocolate con almendras",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 5,
+    stockMinimo: 2,
+    categoriaSabor: "chocolates",
+  },
+  {
+    id: "demo-sabor-chocolate-blanco",
+    nombre: "Chocolate blanco",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 4,
+    stockMinimo: 2,
+    categoriaSabor: "chocolates",
+  },
+  {
+    id: "demo-sabor-frutilla",
+    nombre: "Frutilla",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 9,
+    stockMinimo: 3,
+    categoriaSabor: "frutales",
+  },
+  {
+    id: "demo-sabor-naranja",
+    nombre: "Naranja",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 6,
+    stockMinimo: 2,
+    categoriaSabor: "frutales",
+  },
+  {
+    id: "demo-sabor-limon",
+    nombre: "Limón",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 3,
+    stockMinimo: 3,
+    categoriaSabor: "frutales",
+  },
+  {
+    id: "demo-sabor-dulce-leche",
+    nombre: "Dulce de leche",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 10,
+    stockMinimo: 4,
+    categoriaSabor: "cremas",
+  },
+  {
+    id: "demo-sabor-menta",
+    nombre: "Menta granizada",
+    categoria: "helados",
+    precio: 1,
+    detalle: "Sabor de helado",
+    imagenUrl: "",
+    esSabor: true,
+    controlaStock: true,
+    stockDisponible: 4,
+    stockMinimo: 2,
+    categoriaSabor: "especiales",
   },
   {
     id: "demo-cucurucho",
@@ -70,6 +163,24 @@ const productosDemo = [
       cantidadSabores: 2,
       permitirRepetidos: true,
     },
+  },
+  {
+    id: "demo-cucurucho-simple",
+    nombre: "Cucurucho simple",
+    categoria: "helados",
+    precio: 1800,
+    detalle: "Un sabor a elección",
+    imagenUrl: "",
+    configuracionVenta: { tipo: "sabores", cantidadSabores: 1, permitirRepetidos: true },
+  },
+  {
+    id: "demo-cucurucho-triple",
+    nombre: "Cucurucho triple bañado",
+    categoria: "helados",
+    precio: 3300,
+    detalle: "Tres sabores, bañado en chocolate",
+    imagenUrl: "",
+    configuracionVenta: { tipo: "sabores", cantidadSabores: 3, permitirRepetidos: true },
   },
   {
     id: "demo-facturas",
@@ -127,9 +238,75 @@ const productosDemo = [
     imagenUrl: "",
   },
   {
+    id: "demo-licuado-frutilla",
+    nombre: "Licuado de frutilla",
+    categoria: "licuados",
+    precio: 2800,
+    detalle: "Vaso grande",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 12,
+    stockMinimo: 4,
+  },
+  {
+    id: "demo-licuado-banana",
+    nombre: "Licuado de banana",
+    categoria: "licuados",
+    precio: 2600,
+    detalle: "Vaso grande",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 2,
+    stockMinimo: 4,
+  },
+  {
+    id: "demo-te-negro",
+    nombre: "Té negro",
+    categoria: "infusiones",
+    precio: 1400,
+    detalle: "Taza",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 15,
+    stockMinimo: 5,
+  },
+  {
+    id: "demo-mate-cocido",
+    nombre: "Mate cocido",
+    categoria: "infusiones",
+    precio: 1200,
+    detalle: "Taza",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 0,
+    stockMinimo: 4,
+  },
+  {
+    id: "demo-limonada",
+    nombre: "Limonada",
+    categoria: "bebidas",
+    precio: 1700,
+    detalle: "Jarra individual",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 8,
+    stockMinimo: 3,
+  },
+  {
+    id: "demo-jugo-naranja",
+    nombre: "Jugo de naranja",
+    categoria: "bebidas",
+    precio: 1900,
+    detalle: "Vaso exprimido",
+    imagenUrl: "",
+    controlaStock: true,
+    stockDisponible: 1,
+    stockMinimo: 3,
+  },
+  {
     id: "demo-agua",
     nombre: "Agua mineral",
-    categoria: "otros",
+    categoria: "bebidas",
     precio: 1200,
     controlaStock: true,
     stockDisponible: 9,
@@ -1477,18 +1654,12 @@ function InventarioDemo({ productos, rol, setProductos }) {
       const carga = cargas.find(({ item }) => item.id === producto.id);
       return carga ? { ...producto, stockDisponible: carga.saldoPosterior } : producto;
     }));
-    setMovimientosDemo((actuales) => [
-      ...cargas.map(({ item, cantidad, saldoPosterior, detalle }) => ({
-        id: `mov-demo-${globalThis.crypto.randomUUID()}`,
-        producto: item.nombre,
-        cantidad,
-        saldoPosterior,
-        detalle,
-        fecha: new Date().toISOString(),
-        empleado: rol === "Cajero" ? "Empleado de prueba" : "Administrador de prueba",
-      })),
-      ...actuales,
-    ]);
+    setMovimientosDemo((actuales) => [{
+      id: `informe-demo-${globalThis.crypto.randomUUID()}`,
+      fecha: new Date().toISOString(),
+      empleado: rol === "Cajero" ? "Empleado de prueba" : "Administrador de prueba",
+      productos: cargas.map(({ item, cantidad, detalle }) => ({ nombre: item.nombre, cantidad, descripcion: detalle })),
+    }, ...actuales]);
     setCantidadesCarga({});
     setDetallesCarga({});
     setModoInventario("");
@@ -1655,7 +1826,20 @@ function InventarioDemo({ productos, rol, setProductos }) {
         <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white" onClick={modoInventario === "carga" ? confirmarCargas : guardarMinimosDemo} type="button">{modoInventario === "carga" ? "Confirmar cargas" : "Confirmar minimos"}</button>
       </div>}      <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-semibold text-slate-900">Historial de reposición</h2>
-        {movimientosDemo.length === 0 ? <p className="mt-2 text-sm text-slate-500">Las cargas confirmadas aparecerán aquí con producto, empleado, fecha, cantidad y detalle.</p> : <ul className="mt-3 divide-y divide-slate-100">{movimientosDemo.map((movimiento) => <li className="flex flex-wrap justify-between gap-2 py-3 text-sm" key={movimiento.id}><div><strong>{movimiento.producto}</strong><p className="text-slate-500">{movimiento.empleado} · {new Date(movimiento.fecha).toLocaleString("es-AR")} · {movimiento.detalle}</p></div><span className="font-semibold text-emerald-800">+{movimiento.cantidad} · saldo {movimiento.saldoPosterior}</span></li>)}</ul>}
+        {movimientosDemo.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">Cada confirmación genera un informe con fecha, empleado y los productos cargados.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-100">
+            {movimientosDemo.map((informe) => (
+              <li className="py-3 text-sm" key={informe.id}>
+                <div className="flex flex-wrap justify-between gap-2"><strong>{new Date(informe.fecha).toLocaleString("es-AR")} · {informe.empleado}</strong><span className="text-slate-500">{informe.productos.length} productos</span></div>
+                <ul className="mt-2 space-y-1 pl-5 text-slate-600">
+                  {informe.productos.map((producto, indice) => <li className="list-disc" key={`${informe.id}-${producto.nombre}-${indice}`}><span className="font-medium text-slate-800">{producto.nombre}</span> · +{producto.cantidad} · {producto.descripcion}</li>)}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </section>
   );

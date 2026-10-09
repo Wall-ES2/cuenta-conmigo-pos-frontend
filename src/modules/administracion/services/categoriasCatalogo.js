@@ -3,6 +3,13 @@ import { categorias as categoriasBase } from "../../ventas/data/productos.js";
 const claveCategorias = "cuenta-conmigo-categorias-productos-v1";
 const claveCategoriasSabores = "cuenta-conmigo-categorias-sabores-v1";
 const claveCategoriasProductosEliminadas = "cuenta-conmigo-categorias-productos-eliminadas-v1";
+const claveCategoriasSaboresInicializadas = "cuenta-conmigo-categorias-sabores-inicializadas-v1";
+const categoriasSaboresIniciales = [
+  { id: "chocolates", nombre: "Chocolates" },
+  { id: "frutales", nombre: "Frutales" },
+  { id: "cremas", nombre: "Cremas" },
+  { id: "especiales", nombre: "Especiales" },
+];
 
 function leerLista(clave) {
   try {
@@ -67,11 +74,23 @@ export function listarCategoriasProductos() {
 }
 
 export function listarCategoriasSabores() {
-  return leerLista(claveCategoriasSabores);
+  const guardadas = leerLista(claveCategoriasSabores);
+  try {
+    const inicializadas = globalThis.localStorage?.getItem(claveCategoriasSaboresInicializadas) === "true";
+    if (inicializadas) return guardadas;
+    const iniciales = guardadas.length ? guardadas : categoriasSaboresIniciales;
+    guardarLista(claveCategoriasSabores, iniciales);
+    globalThis.localStorage?.setItem(claveCategoriasSaboresInicializadas, "true");
+    return iniciales;
+  } catch {
+    return guardadas.length ? guardadas : categoriasSaboresIniciales;
+  }
 }
 
 export function listarCategoriasEliminables(tipo = "productos") {
-  const lista = leerLista(tipo === "sabores" ? claveCategoriasSabores : claveCategorias);
+  const lista = tipo === "sabores"
+    ? listarCategoriasSabores()
+    : leerLista(claveCategorias);
   if (tipo === "sabores") return lista;
   return listarCategoriasProductos();
 }

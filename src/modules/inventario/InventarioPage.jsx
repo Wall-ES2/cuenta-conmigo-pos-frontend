@@ -42,6 +42,16 @@ const estadosStock = [
   { id: "en-stock", nombre: "En stock" },
   { id: "sin-conteo", nombre: "Sin conteo" },
 ];
+const claveInformesReposicion = "cuenta-conmigo-informes-reposicion-v1";
+
+function leerInformesReposicion() {
+  try {
+    const informes = JSON.parse(globalThis.localStorage?.getItem(claveInformesReposicion) ?? "[]");
+    return Array.isArray(informes) ? informes : [];
+  } catch {
+    return [];
+  }
+}
 
 function InventarioPage() {
   const usuarioActual = useAuthStore((state) => state.usuario);
@@ -60,6 +70,7 @@ function InventarioPage() {
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [movimientos, setMovimientos] = useState([]);
+  const [informesReposicion, setInformesReposicion] = useState(leerInformesReposicion);
   const [cargandoMovimientos, setCargandoMovimientos] = useState(false);
   const [errorHistorial, setErrorHistorial] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -267,6 +278,25 @@ function InventarioPage() {
     }
     setClavesCarga(clavesUsadas);
     if (registradas.length) {
+      const informe = {
+        id: globalThis.crypto.randomUUID(),
+        fecha: registradas[0].movimiento.creadoEn || new Date().toISOString(),
+        empleado: registradas[0].movimiento.usuario || usuarioActual?.name || usuarioActual?.nombre || usuarioActual?.email || "Empleado",
+        productos: registradas.map(({ producto, movimiento }) => ({
+          nombre: producto.nombre,
+          cantidad: movimiento.cantidad,
+          descripcion: movimiento.motivo || "Carga de stock",
+        })),
+      };
+      setInformesReposicion((actuales) => {
+        const siguientes = [informe, ...actuales];
+        try {
+          globalThis.localStorage?.setItem(claveInformesReposicion, JSON.stringify(siguientes));
+        } catch {
+          // El registro del backend sigue siendo la fuente del historial de movimientos.
+        }
+        return siguientes;
+      });
       const productoHistorial = registradas[0].producto;
       setProductoSeleccionado(productoHistorial.id);
       setMovimientos(registradas.filter(({ producto }) => producto.id === productoHistorial.id).map(({ movimiento }) => movimiento));
@@ -516,6 +546,31 @@ function InventarioPage() {
           <button className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={guardandoCargas} onClick={guardarCargas} type="button">{guardandoCargas ? "Registrando cargas..." : "Confirmar cargas"}</button>
         </div>
       )}
+
+      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Historial de reposición</h2>
+        {informesReposicion.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">Cada confirmación de carga aparecerá como un informe con sus productos, cantidades y detalles.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-200">
+            {informesReposicion.map((informe) => (
+              <li className="py-4" key={informe.id}>
+                <div className="flex flex-wrap justify-between gap-2 text-sm">
+                  <strong className="text-slate-800">{new Date(informe.fecha).toLocaleString("es-AR")} · {informe.empleado}</strong>
+                  <span className="text-slate-500">{informe.productos.length} productos</span>
+                </div>
+                <ul className="mt-2 space-y-1 pl-4 text-sm text-slate-600">
+                  {informe.productos.map((producto, indice) => (
+                    <li className="list-disc" key={`${informe.id}-${producto.nombre}-${indice}`}>
+                      <span className="font-medium text-slate-800">{producto.nombre}</span> · +{producto.cantidad} · {producto.descripcion}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {productoActual && (
         <section aria-labelledby="historial-heading" className="mt-6">
