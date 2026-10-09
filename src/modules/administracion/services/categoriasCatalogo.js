@@ -3,6 +3,7 @@ import { categorias as categoriasBase } from "../../ventas/data/productos.js";
 const claveCategorias = "cuenta-conmigo-categorias-productos-v1";
 const claveCategoriasSabores = "cuenta-conmigo-categorias-sabores-v1";
 const claveCategoriasProductosEliminadas = "cuenta-conmigo-categorias-productos-eliminadas-v1";
+const claveNombresCategoriasProductos = "cuenta-conmigo-categorias-productos-nombres-v1";
 const claveCategoriasSaboresInicializadas = "cuenta-conmigo-categorias-sabores-inicializadas-v1";
 const categoriasSaboresIniciales = [
   { id: "chocolates", nombre: "Chocolates" },
@@ -64,9 +65,15 @@ function guardarIdsEliminados(ids) {
 export function listarCategoriasProductos() {
   const personalizadas = leerLista(claveCategorias);
   const eliminadas = new Set(leerIdsEliminados());
+  let nombres = {};
+  try {
+    nombres = JSON.parse(globalThis.localStorage?.getItem(claveNombresCategoriasProductos) ?? "{}");
+  } catch {
+    nombres = {};
+  }
   const base = categoriasBase.filter(({ id }) => id !== "todos");
   return [
-    ...base.filter(({ id }) => !eliminadas.has(id)),
+    ...base.filter(({ id }) => !eliminadas.has(id)).map((categoria) => ({ ...categoria, nombre: nombres[categoria.id] ?? categoria.nombre })),
     ...personalizadas.filter(
       (categoria) => !base.some(({ id }) => id === categoria.id) && !eliminadas.has(categoria.id),
     ),
@@ -141,4 +148,38 @@ export function crearCategoriaCatalogo(nombre, tipo = "productos") {
   }
   guardarLista(clave, [...lista, categoria]);
   return categoria;
+}
+
+export function actualizarCategoriaCatalogo(id, nombre, tipo = "productos") {
+  const valor = nombre.trim();
+  if (valor.length < 2 || valor.length > 60) {
+    throw new Error("El nombre de la categoría debe tener entre 2 y 60 caracteres.");
+  }
+  const clave = tipo === "sabores" ? claveCategoriasSabores : claveCategorias;
+  const lista = tipo === "sabores" ? listarCategoriasSabores() : leerLista(clave);
+  const categoriasDisponibles = tipo === "sabores" ? lista : listarCategoriasProductos();
+  if (!categoriasDisponibles.some((categoria) => categoria.id === id)) {
+    throw new Error("La categoría seleccionada ya no está disponible.");
+  }
+  if (categoriasDisponibles.some((categoria) => categoria.id !== id && categoria.nombre.trim().toLocaleLowerCase("es") === valor.toLocaleLowerCase("es"))) {
+    throw new Error("Ya existe una categoría con ese nombre.");
+  }
+  const actualizadas = lista.map((categoria) => categoria.id === id ? { ...categoria, nombre: valor } : categoria);
+  const idsBase = new Set(categoriasBase.filter(({ id: categoriaId }) => categoriaId !== "todos").map(({ id: categoriaId }) => categoriaId));
+  if (tipo !== "sabores" && idsBase.has(id)) {
+    let nombres = {};
+    try {
+      nombres = JSON.parse(globalThis.localStorage?.getItem(claveNombresCategoriasProductos) ?? "{}");
+    } catch { /* Usa el mapa vacío. */ }
+    try {
+      globalThis.localStorage?.setItem(claveNombresCategoriasProductos, JSON.stringify({ ...nombres, [id]: valor }));
+    } catch {
+      throw new Error("No se pudo guardar el nuevo nombre de categoría.");
+    }
+  } else {
+    guardarLista(clave, actualizadas);
+  }
+  return categoriasDisponibles.find((categoria) => categoria.id === id)
+    ? { ...categoriasDisponibles.find((categoria) => categoria.id === id), nombre: valor }
+    : undefined;
 }

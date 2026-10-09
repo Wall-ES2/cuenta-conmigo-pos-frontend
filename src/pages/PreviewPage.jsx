@@ -5,6 +5,7 @@ import {
 } from "../modules/ventas/data/productos.js";
 import {
   crearCategoriaCatalogo,
+  actualizarCategoriaCatalogo,
   eliminarCategoriasCatalogo,
   listarCategoriasEliminables,
   listarCategoriasProductos,
@@ -348,6 +349,10 @@ const formularioProductoDemoVacio = {
 const categoriaNombre = Object.fromEntries(
   categorias.map(({ id, nombre }) => [id, nombre]),
 );
+
+function obtenerNombreCategoria(id) {
+  return listarCategoriasProductos().find((categoria) => categoria.id === id)?.nombre ?? categoriaNombre[id] ?? id;
+}
 
 function crearVentasDemo() {
   const hoy = new Date();
@@ -1147,7 +1152,7 @@ function ResumenIndicadores({
   categoriaGrafico,
 }) {
   const categoriaSeleccionada =
-    categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
+    obtenerNombreCategoria(categoriaGrafico);
   const totalVendidoSeleccionado =
     categoriaGrafico === "todas"
       ? reporte.totalFacturado
@@ -1239,7 +1244,7 @@ function FinancieroDemo({
 }) {
   const [categoriaGrafico, setCategoriaGrafico] = useState("todas");
   const categoriaSeleccionada =
-    categoriaNombre[categoriaGrafico] ?? categoriaGrafico;
+    obtenerNombreCategoria(categoriaGrafico);
   const diasGrafico = reporte.dias.map((dia) => {
     if (categoriaGrafico === "todas") return dia;
     const datosCategoria = dia.porCategoria?.[categoriaGrafico];
@@ -1291,7 +1296,7 @@ function FinancieroDemo({
             <option value="todas">Todas las categorías</option>
             {reporte.porCategoria.map((item) => (
               <option key={item.nombre} value={item.nombre}>
-                {categoriaNombre[item.nombre] ?? item.nombre}
+                {obtenerNombreCategoria(item.nombre)}
               </option>
             ))}
           </select>
@@ -1382,7 +1387,7 @@ function FinancieroDemo({
           <ListaAgrupacion
             elementos={reporte.porCategoria.map((item) => ({
               ...item,
-              nombre: categoriaNombre[item.nombre] ?? item.nombre,
+              nombre: obtenerNombreCategoria(item.nombre),
             }))}
             totalPeriodo={reporte.totalFacturado}
           />
@@ -1864,6 +1869,15 @@ function AdministracionDemo({
   const [errorCategoriaSabor, setErrorCategoriaSabor] = useState("");
   const [modalCategoriaAbierto, setModalCategoriaAbierto] = useState(false);
   const [modalBorrarCategoriasAbierto, setModalBorrarCategoriasAbierto] = useState(false);
+  const [editarCategoriasSaboresAbierto, setEditarCategoriasSaboresAbierto] = useState(false);
+  const [categoriaSaborEditando, setCategoriaSaborEditando] = useState("");
+  const [nombreCategoriaSaborEditando, setNombreCategoriaSaborEditando] = useState("");
+  const [errorEdicionCategoriaSabor, setErrorEdicionCategoriaSabor] = useState("");
+  const [tipoCategoriaEditor, setTipoCategoriaEditor] = useState("productos");
+  const [categoriaAsignacionId, setCategoriaAsignacionId] = useState("");
+  const [productosSeleccionadosAsignacion, setProductosSeleccionadosAsignacion] = useState([]);
+  const [mensajeAsignacionCategoria, setMensajeAsignacionCategoria] = useState("");
+  const productosAsignables = productos.filter((producto) => !producto.esSabor && !producto.configuracionVenta);
   const [nombreCategoria, setNombreCategoria] = useState("");
   const [tipoCategoria, setTipoCategoria] = useState("productos");
   const [tipoCategoriaEliminar, setTipoCategoriaEliminar] = useState("productos");
@@ -1946,6 +1960,35 @@ function AdministracionDemo({
     } catch (err) {
       setErrorCategoriaSabor(err instanceof Error ? err.message : "No se pudo crear la categoría.");
     }
+  }
+
+  function guardarEdicionCategoriaSaborDemo(id) {
+    setErrorEdicionCategoriaSabor("");
+    try {
+      const actualizada = actualizarCategoriaCatalogo(id, nombreCategoriaSaborEditando, tipoCategoriaEditor);
+      if (tipoCategoriaEditor === "sabores") {
+        setCategoriasSabores((actuales) => actuales.map((categoria) => categoria.id === id ? actualizada : categoria));
+        setCategoriasEliminables((actuales) => ({ ...actuales, sabores: actuales.sabores.map((categoria) => categoria.id === id ? actualizada : categoria) }));
+      } else {
+        setCategoriasProductos(listarCategoriasProductos());
+        setCategoriasEliminables((actuales) => ({ ...actuales, productos: listarCategoriasEliminables("productos") }));
+      }
+      setCategoriaSaborEditando("");
+    } catch (err) {
+      setErrorEdicionCategoriaSabor(err instanceof Error ? err.message : "No se pudo actualizar la categoría.");
+    }
+  }
+
+  function asignarCategoriaAProductosDemo() {
+    if (!categoriaAsignacionId || !productosSeleccionadosAsignacion.length) return;
+    setProductos((actuales) => actuales.map((producto) => productosSeleccionadosAsignacion.includes(producto.id) && !producto.esSabor && !producto.configuracionVenta
+      ? { ...producto, categoria: categoriaAsignacionId }
+      : producto));
+    const cantidad = productosSeleccionadosAsignacion.length;
+    const nombre = categoriasProductos.find(({ id }) => id === categoriaAsignacionId)?.nombre ?? "la categoría";
+    setMensajeAsignacionCategoria(`Se asignaron ${cantidad} productos a ${nombre}.`);
+    setProductosSeleccionadosAsignacion([]);
+    setCategoriaAsignacionId("");
   }
 
   useEffect(() => {
@@ -2160,6 +2203,7 @@ function AdministracionDemo({
           Agregar nuevo producto
         </button>
         <button className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50" onClick={() => { setErrorCategoria(""); setModalBorrarCategoriasAbierto(true); }} type="button">Borrar categorías</button>
+        <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setEditarCategoriasSaboresAbierto((actual) => !actual); setErrorEdicionCategoriaSabor(""); }} type="button">{editarCategoriasSaboresAbierto ? "Cerrar edición de categorías" : "Editar categorías"}</button>
       </div>
       {modalCategoriaAbierto && (
         <form className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]" onSubmit={guardarCategoriaDemo}>
@@ -2192,6 +2236,28 @@ function AdministracionDemo({
           {tipoCategoriaEliminar === "productos" && <p className="text-xs text-slate-500 sm:col-span-3">Los productos existentes se conservan y aparecen sin categoría; podrás reasignarlos al editarlos.</p>}
           {errorCategoria && <p className="text-sm text-red-700 sm:col-span-3" role="alert">{errorCategoria}</p>}
         </div>
+      )}
+      {editarCategoriasSaboresAbierto && (
+        <section aria-labelledby="demo-edit-categories" className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div><h2 className="font-semibold text-slate-900" id="demo-edit-categories">Editar categorías</h2><p className="text-sm text-slate-600">Los productos y sabores siguen asociados al renombrar.</p></div>
+          <label className="max-w-sm text-sm font-medium text-slate-700">Tipo de categoría<select className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2" onChange={(event) => { setTipoCategoriaEditor(event.target.value); setCategoriaSaborEditando(""); }} value={tipoCategoriaEditor}><option value="productos">Categorías de productos</option><option value="sabores">Categorías de sabores</option></select></label>
+          {(tipoCategoriaEditor === "sabores" ? categoriasSabores : categoriasProductos).map((categoria) => <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 py-2" key={categoria.id}>
+            {categoriaSaborEditando === categoria.id ? <>
+              <input aria-label={`Nuevo nombre para ${categoria.nombre}`} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2" maxLength={60} minLength={2} onChange={(event) => setNombreCategoriaSaborEditando(event.target.value)} value={nombreCategoriaSaborEditando} />
+              <button className="rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white" onClick={() => guardarEdicionCategoriaSaborDemo(categoria.id)} type="button">Guardar</button>
+              <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setCategoriaSaborEditando("")} type="button">Cancelar</button>
+            </> : <><span className="flex-1 font-medium">{categoria.nombre}</span><button className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold" onClick={() => { setCategoriaSaborEditando(categoria.id); setNombreCategoriaSaborEditando(categoria.nombre); }} type="button">Editar</button>{tipoCategoriaEditor === "productos" && <button className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${categoriaAsignacionId === categoria.id ? "border-emerald-800 bg-emerald-800 text-white" : "border-emerald-800 text-emerald-800"}`} onClick={() => { setCategoriaAsignacionId(categoria.id); setProductosSeleccionadosAsignacion([]); setMensajeAsignacionCategoria(""); }} type="button">Asignar</button>}</>}
+          </div>)}
+          {tipoCategoriaEditor === "productos" && categoriaAsignacionId && <section className="grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+            <h3 className="font-semibold">Asignar a {categoriasProductos.find(({ id }) => id === categoriaAsignacionId)?.nombre}</h3>
+            <p className="text-xs text-slate-600">Los sabores y cucuruchos configurables permanecen en Helados.</p>
+            <label className="flex items-center gap-2 text-sm"><input checked={productosAsignables.length > 0 && productosSeleccionadosAsignacion.length === productosAsignables.length} onChange={(event) => setProductosSeleccionadosAsignacion(event.target.checked ? productosAsignables.map(({ id }) => id) : [])} type="checkbox" />Seleccionar todos los productos compatibles ({productosAsignables.length})</label>
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white">{productosAsignables.map((producto) => <label className="flex items-center gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0" key={producto.id}><input checked={productosSeleccionadosAsignacion.includes(producto.id)} onChange={(event) => setProductosSeleccionadosAsignacion((actuales) => event.target.checked ? [...actuales, producto.id] : actuales.filter((id) => id !== producto.id))} type="checkbox" /><span className="flex-1">{producto.nombre}</span><span className="text-slate-500">{categoriasProductos.find(({ id }) => id === producto.categoria)?.nombre ?? "Sin categoría"}</span></label>)}</div>
+            <div className="flex flex-wrap items-center justify-between gap-2">{mensajeAsignacionCategoria && <p className="text-sm text-emerald-800" role="status">{mensajeAsignacionCategoria}</p>}<button className="ml-auto rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!productosSeleccionadosAsignacion.length} onClick={asignarCategoriaAProductosDemo} type="button">Asignar {productosSeleccionadosAsignacion.length} productos</button></div>
+          </section>}
+          {(tipoCategoriaEditor === "sabores" ? categoriasSabores : categoriasProductos).length === 0 && <p className="text-sm text-slate-500">No hay categorías para editar.</p>}
+          {errorEdicionCategoriaSabor && <p className="text-sm text-red-700" role="alert">{errorEdicionCategoriaSabor}</p>}
+        </section>
       )}
       {modalProductoAbierto && (
         <>
@@ -2490,7 +2556,7 @@ function AdministracionDemo({
                     {producto.nombre}
                   </p>
                   <p className="text-slate-500">
-                    {categoriaNombre[producto.categoria]} ·{" "}
+                    {obtenerNombreCategoria(producto.categoria)} ·{" "}
                     {producto.detalle || "Sin descripción"}
                   </p>
                   <p className="mt-1 font-semibold text-slate-900">

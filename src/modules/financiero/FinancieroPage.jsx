@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import TendenciaVentas from "./components/TendenciaVentas";
 import TarjetaIndicador from "./components/TarjetaIndicador";
 import { formatearPrecio } from "../ventas/data/productos.js";
+import { listarCategoriasProductos } from "../administracion/services/categoriasCatalogo.js";
 import {
   calcularReporteVentas,
   cargarVentasLocales,
@@ -29,7 +30,8 @@ function FinancieroPage() {
   const [reporte, setReporte] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const categoriaSeleccionada = categoriaEtiquetas[categoriaGrafico] ?? categoriaGrafico;
+  const etiquetasCategoriaActuales = Object.fromEntries(listarCategoriasProductos().map(({ id, nombre }) => [id, nombre]));
+  const categoriaSeleccionada = etiquetasCategoriaActuales[categoriaGrafico] ?? categoriaEtiquetas[categoriaGrafico] ?? categoriaGrafico;
   const totalVendidoSeleccionado = categoriaGrafico === "todas"
     ? reporte?.totalFacturado ?? 0
     : reporte?.porCategoria.find((item) => item.nombre === categoriaGrafico)?.total ?? 0;
@@ -159,7 +161,7 @@ function FinancieroPage() {
           Categoría de gráficos
           <select className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2.5" id="categoria-grafico" onChange={(event) => setCategoriaGrafico(event.target.value)} value={categoriaGrafico}>
             <option value="todas">Todas las categorías</option>
-            {(reporte?.porCategoria ?? []).map((item) => <option key={item.nombre} value={item.nombre}>{categoriaEtiquetas[item.nombre] ?? item.nombre}</option>)}
+            {(reporte?.porCategoria ?? []).map((item) => <option key={item.nombre} value={item.nombre}>{etiquetasCategoriaActuales[item.nombre] ?? categoriaEtiquetas[item.nombre] ?? item.nombre}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-700" htmlFor="fecha-desde">
@@ -326,7 +328,7 @@ function FinancieroPage() {
                         <li key={item.nombre}>
                           <div className="flex justify-between gap-3 text-sm">
                             <span className="text-slate-700">
-                              {categoriaEtiquetas[item.nombre] ?? item.nombre}
+                              {etiquetasCategoriaActuales[item.nombre] ?? categoriaEtiquetas[item.nombre] ?? item.nombre}
                             </span>
                             <span className="text-right">
                               <strong className="block font-semibold text-slate-900">
