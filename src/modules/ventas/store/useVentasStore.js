@@ -38,9 +38,10 @@ function validarProducto(producto) {
   }
 
   if (
-    !categoriasValidas.has(producto.categoria) &&
+    producto.categoria === "todos" ||
+    (!categoriasValidas.has(producto.categoria) &&
     (typeof producto.categoria !== "string" ||
-      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(producto.categoria))
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(producto.categoria)))
   ) {
     throw new Error("Selecciona una categoría válida para el producto.");
   }
