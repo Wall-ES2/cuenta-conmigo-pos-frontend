@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --import=fake-indexeddb/auto --test src/modules/ventas/store/useVentasStore.test.js src/modules/ventas/services/sincronizarVentas.test.js src/services/apiClient.test.js src/modules/administracion/services/productosApi.test.js src/modules/administracion/services/usuariosApi.test.js src/modules/financiero/services/reportesVentas.test.js",
+    "test": "node --import=fake-indexeddb/auto --test src/modules/ventas/domain/configuracionSabores.test.js src/modules/ventas/store/useVentasStore.test.js src/modules/ventas/services/sincronizarVentas.test.js src/services/apiClient.test.js src/modules/administracion/services/productosApi.test.js src/modules/administracion/services/usuariosApi.test.js src/modules/inventario/services/inventarioApi.test.js src/modules/financiero/services/reportesVentas.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

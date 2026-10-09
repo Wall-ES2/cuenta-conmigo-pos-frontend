@@ -1,83 +1,183 @@
-import { apiRequest } from '../../../services/apiClient.js'
+import { apiRequest } from "../../../services/apiClient.js";
+import { normalizarConfiguracionVenta } from "../../ventas/domain/configuracionSabores.js";
 
 export async function listarProductosApi() {
-  const response = await apiRequest('/products')
+  const response = await apiRequest("/products");
 
   if (!Array.isArray(response)) {
-    throw new Error('El backend debe devolver una lista de productos en /products.')
+    throw new Error(
+      "El backend debe devolver una lista de productos en /products.",
+    );
   }
 
-  return response.map(normalizarProductoApi)
+  return response.map(normalizarProductoApi);
 }
 
 export async function crearProductoApi(producto) {
-  const response = await apiRequest('/products', {
-    method: 'POST',
-    body: serializarProducto(producto),
-    headers: { 'Idempotency-Key': producto.id }
-  })
+  const response = await apiRequest("/products", {
+    method: "POST",
+    body: serializarProductoApi(producto),
+    headers: { "Idempotency-Key": producto.id },
+  });
 
-  return normalizarProductoApi(response)
+  return normalizarProductoApi(response);
 }
 
 export async function actualizarProductoApi(producto) {
-  const response = await apiRequest(`/products/${encodeURIComponent(producto.id)}`, {
-    method: 'PUT',
-    body: serializarProducto(producto)
-  })
+  const response = await apiRequest(
+    `/products/${encodeURIComponent(producto.id)}`,
+    {
+      method: "PUT",
+      body: serializarProductoApi(producto),
+    },
+  );
 
-  return normalizarProductoApi(response)
+  return normalizarProductoApi(response);
 }
 
 export async function eliminarProductoApi(id) {
-  await apiRequest(`/products/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  await apiRequest(`/products/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function normalizarProductoApi(producto) {
   if (
-    !producto
-    || typeof producto.id !== 'string'
-    || typeof producto.name !== 'string'
-    || typeof producto.category !== 'string'
-    || !Number.isFinite(producto.price)
+    !producto ||
+    typeof producto.id !== "string" ||
+    typeof producto.name !== "string" ||
+    typeof producto.category !== "string" ||
+    !Number.isFinite(producto.price)
   ) {
-    throw new Error('El backend devolvió un producto con campos inválidos.')
+    throw new Error("El backend devolvió un producto con campos inválidos.");
   }
 
-  const imagenUrl = normalizarImagenUrl(producto.imageUrl)
+  if (
+    producto.isFlavor !== undefined &&
+    typeof producto.isFlavor !== "boolean"
+  ) {
+    throw new Error(
+      "El backend devolvió un producto con configuración de sabor inválida.",
+    );
+  }
 
-  return {
+  const esSabor = producto.isFlavor ?? false;
+  const salesConfiguration = producto.salesConfiguration;
+  const configuracionVenta =
+    salesConfiguration == null
+      ? null
+      : normalizarConfiguracionVenta({
+          tipo:
+            salesConfiguration.type === "flavors"
+              ? "sabores"
+              : salesConfiguration.type,
+          cantidadSabores: salesConfiguration.selectionCount,
+          permitirRepetidos: salesConfiguration.allowDuplicates,
+        });
+
+  if (esSabor && (producto.category !== "helados" || configuracionVenta)) {
+    throw new Error(
+      "Un sabor debe pertenecer a Helados y no puede ser configurable.",
+    );
+  }
+
+  const stockDisponible = producto.availablePortions;
+  const stockMinimo = producto.minimumPortions;
+  if (
+    stockDisponible !== undefined &&
+    stockDisponible !== null &&
+    (!Number.isInteger(stockDisponible) || stockDisponible < 0)
+  ) {
+    throw new Error(
+      "El backend devolvió una disponibilidad de sabor inválida.",
+    );
+  }
+  if (
+    stockMinimo !== undefined &&
+    stockMinimo !== null &&
+    (!Number.isInteger(stockMinimo) || stockMinimo < 0)
+  ) {
+    throw new Error("El backend devolvió un mínimo de stock inválido.");
+  }
+
+  const imagenUrl = normalizarImagenUrl(producto.imageUrl);
+
+  const productoNormalizado = {
     id: producto.id,
     nombre: producto.name,
     categoria: producto.category,
     precio: producto.price,
-    detalle: typeof producto.detail === 'string' ? producto.detail : '',
-    imagenUrl
+    detalle: typeof producto.detail === "string" ? producto.detail : "",
+    imagenUrl,
+  };
+
+  if (producto.isFlavor !== undefined || salesConfiguration !== undefined) {
+    productoNormalizado.esSabor = esSabor;
+    productoNormalizado.configuracionVenta = configuracionVenta;
   }
+  if (stockDisponible !== undefined && stockDisponible !== null) {
+    productoNormalizado.stockDisponible = stockDisponible;
+  }
+  if (stockMinimo !== undefined && stockMinimo !== null) {
+    productoNormalizado.stockMinimo = stockMinimo;
+  }
+
+  return productoNormalizado;
 }
 
 export function normalizarImagenUrl(value) {
-  if (value === undefined || value === null || value === '') return ''
-  if (typeof value !== 'string') {
-    throw new Error('La URL de imagen debe ser un enlace HTTP o HTTPS.')
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value !== "string") {
+    throw new Error("La URL de imagen debe ser un enlace HTTP o HTTPS.");
   }
 
   try {
-    const url = new URL(value)
-    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Protocolo inválido.')
-    return url.href
+    const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol))
+      throw new Error("Protocolo inválido.");
+    return url.href;
   } catch (error) {
-    throw new Error('La URL de imagen debe ser un enlace HTTP o HTTPS.', { cause: error })
+    throw new Error("La URL de imagen debe ser un enlace HTTP o HTTPS.", {
+      cause: error,
+    });
   }
 }
 
-function serializarProducto(producto) {
+export function serializarProductoApi(producto) {
+  const configuracionVenta = normalizarConfiguracionVenta(
+    producto.configuracionVenta,
+  );
+  if (
+    producto.esSabor &&
+    (producto.categoria !== "helados" || configuracionVenta)
+  ) {
+    throw new Error(
+      "Un sabor debe pertenecer a Helados y no puede ser configurable.",
+    );
+  }
+  if (
+    producto.esSabor &&
+    (!Number.isInteger(producto.stockMinimo ?? 0) ||
+      (producto.stockMinimo ?? 0) < 0)
+  ) {
+    throw new Error(
+      "El mínimo de stock debe ser un entero igual o mayor que cero.",
+    );
+  }
+
   return {
     id: producto.id,
     name: producto.nombre,
     category: producto.categoria,
     price: producto.precio,
     detail: producto.detalle,
-    imageUrl: normalizarImagenUrl(producto.imagenUrl) || null
-  }
+    imageUrl: normalizarImagenUrl(producto.imagenUrl) || null,
+    isFlavor: producto.esSabor === true,
+    salesConfiguration: configuracionVenta
+      ? {
+          type: "flavors",
+          selectionCount: configuracionVenta.cantidadSabores,
+          allowDuplicates: configuracionVenta.permitirRepetidos,
+        }
+      : null,
+    minimumPortions: producto.esSabor ? (producto.stockMinimo ?? 0) : null,
+  };
 }

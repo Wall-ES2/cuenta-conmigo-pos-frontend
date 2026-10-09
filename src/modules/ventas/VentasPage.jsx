@@ -1,76 +1,118 @@
-import { useMemo, useState } from 'react'
-import CarritoVentas from './components/CarritoVentas'
-import ProductoCard from './components/ProductoCard'
-import { categorias, formatearPrecio } from './data/productos'
-import { useVentasStore } from './store/useVentasStore'
-import './ventas.css'
+import { useMemo, useState } from "react";
+import CarritoVentas from "./components/CarritoVentas";
+import ConfiguradorSaboresModal from "./components/ConfiguradorSaboresModal";
+import ProductoCard from "./components/ProductoCard";
+import { categorias, formatearPrecio } from "./data/productos";
+import { metodosPago } from "./data/metodosPago";
+import { useVentasStore } from "./store/useVentasStore";
+import "./ventas.css";
 
 function VentasPage() {
-  const [categoriaActiva, setCategoriaActiva] = useState('todos')
-  const [busqueda, setBusqueda] = useState('')
-  const [mostrarCobro, setMostrarCobro] = useState(false)
-  const [metodoPago, setMetodoPago] = useState('Efectivo')
-  const [mensaje, setMensaje] = useState('')
-  const [error, setError] = useState('')
-  const productos = useVentasStore((state) => state.productos)
-  const carrito = useVentasStore((state) => state.carrito)
-  const inicializado = useVentasStore((state) => state.inicializado)
-  const errorAlmacenamiento = useVentasStore((state) => state.errorAlmacenamiento)
-  const errorServiceWorker = useVentasStore((state) => state.errorServiceWorker)
-  const errorSincronizacion = useVentasStore((state) => state.errorSincronizacion)
-  const errorCatalogoApi = useVentasStore((state) => state.errorCatalogoApi)
-  const guardandoVenta = useVentasStore((state) => state.guardandoVenta)
-  const agregarAlCarrito = useVentasStore((state) => state.agregarAlCarrito)
-  const aumentarCantidad = useVentasStore((state) => state.aumentarCantidad)
-  const disminuirCantidad = useVentasStore((state) => state.disminuirCantidad)
-  const quitarDelCarrito = useVentasStore((state) => state.quitarDelCarrito)
-  const vaciarCarritoStore = useVentasStore((state) => state.vaciarCarrito)
-  const registrarVenta = useVentasStore((state) => state.registrarVenta)
+  const [categoriaActiva, setCategoriaActiva] = useState("todos");
+  const [busqueda, setBusqueda] = useState("");
+  const [mostrarCobro, setMostrarCobro] = useState(false);
+  const [productoConfigurando, setProductoConfigurando] = useState(null);
+  const [metodoPago, setMetodoPago] = useState("Efectivo");
+  const [mensaje, setMensaje] = useState("");
+  const [error, setError] = useState("");
+  const productos = useVentasStore((state) => state.productos);
+  const carrito = useVentasStore((state) => state.carrito);
+  const inicializado = useVentasStore((state) => state.inicializado);
+  const errorAlmacenamiento = useVentasStore(
+    (state) => state.errorAlmacenamiento,
+  );
+  const errorServiceWorker = useVentasStore(
+    (state) => state.errorServiceWorker,
+  );
+  const errorSincronizacion = useVentasStore(
+    (state) => state.errorSincronizacion,
+  );
+  const errorCatalogoApi = useVentasStore((state) => state.errorCatalogoApi);
+  const estadoSincronizacion = useVentasStore(
+    (state) => state.estadoSincronizacion,
+  );
+  const guardandoVenta = useVentasStore((state) => state.guardandoVenta);
+  const agregarAlCarrito = useVentasStore((state) => state.agregarAlCarrito);
+  const aumentarCantidad = useVentasStore((state) => state.aumentarCantidad);
+  const disminuirCantidad = useVentasStore((state) => state.disminuirCantidad);
+  const quitarDelCarrito = useVentasStore((state) => state.quitarDelCarrito);
+  const vaciarCarritoStore = useVentasStore((state) => state.vaciarCarrito);
+  const registrarVenta = useVentasStore((state) => state.registrarVenta);
+  const reintentarVentasBloqueadas = useVentasStore(
+    (state) => state.reintentarVentasBloqueadas,
+  );
 
   const productosFiltrados = useMemo(() => {
-    const termino = busqueda.trim().toLocaleLowerCase('es')
+    const termino = busqueda.trim().toLocaleLowerCase("es");
 
     return productos.filter((producto) => {
-      const coincideCategoria = categoriaActiva === 'todos' || producto.categoria === categoriaActiva
-      const coincideBusqueda = producto.nombre.toLocaleLowerCase('es').includes(termino)
-      return coincideCategoria && coincideBusqueda
-    })
-  }, [busqueda, categoriaActiva, productos])
+      const coincideCategoria =
+        categoriaActiva === "todos" || producto.categoria === categoriaActiva;
+      const coincideBusqueda = producto.nombre
+        .toLocaleLowerCase("es")
+        .includes(termino);
+      return coincideCategoria && coincideBusqueda;
+    });
+  }, [busqueda, categoriaActiva, productos]);
 
-  const subtotal = carrito.reduce((total, item) => total + item.precio * item.cantidad, 0)
+  const subtotal = carrito.reduce(
+    (total, item) => total + item.precio * item.cantidad,
+    0,
+  );
 
   function agregarProducto(producto) {
-    setMensaje('')
-    agregarAlCarrito(producto.id)
+    setMensaje("");
+    setError("");
+    if (producto.configuracionVenta) {
+      setProductoConfigurando(producto);
+      return;
+    }
+
+    try {
+      agregarAlCarrito(producto.id);
+    } catch (errorAlAgregar) {
+      setError(
+        errorAlAgregar instanceof Error
+          ? errorAlAgregar.message
+          : "No se pudo agregar el producto al carrito.",
+      );
+    }
+  }
+
+  function confirmarSabores(seleccion) {
+    agregarAlCarrito(productoConfigurando.id, seleccion);
+    setProductoConfigurando(null);
   }
 
   function quitarProducto(id) {
-    quitarDelCarrito(id)
+    quitarDelCarrito(id);
   }
 
   function vaciarCarrito() {
-    vaciarCarritoStore()
-    setMensaje('')
+    vaciarCarritoStore();
+    setMensaje("");
   }
 
   async function confirmarCobro() {
-    setError('')
+    setError("");
 
     try {
-      const venta = await registrarVenta(metodoPago)
-      const estadoActual = useVentasStore.getState()
-      setMostrarCobro(false)
+      const venta = await registrarVenta(metodoPago);
+      const estadoActual = useVentasStore.getState();
+      setMostrarCobro(false);
       setMensaje(
         estadoActual.errorSincronizacion
           ? `Venta ${venta.id} guardada localmente. La sincronización falló: ${estadoActual.errorSincronizacion}`
-          : estadoActual.estadoSincronizacion === 'sincronizada'
+          : estadoActual.estadoSincronizacion === "sincronizada"
             ? `Venta ${venta.id} guardada localmente y sincronizada con la API.`
-            : `Venta ${venta.id} guardada localmente y en la cola de sincronización.`
-      )
+            : `Venta ${venta.id} guardada localmente y en la cola de sincronización.`,
+      );
     } catch (errorAlRegistrar) {
-      setError(errorAlRegistrar instanceof Error
-        ? errorAlRegistrar.message
-        : 'No se pudo guardar la venta localmente.')
+      setError(
+        errorAlRegistrar instanceof Error
+          ? errorAlRegistrar.message
+          : "No se pudo guardar la venta localmente.",
+      );
     }
   }
 
@@ -92,29 +134,49 @@ function VentasPage() {
 
       {errorServiceWorker && (
         <div className="sales-status sales-status-error" role="alert">
-          El almacenamiento local sigue disponible, pero el Service Worker no se activó:
-          {' '}{errorServiceWorker}
+          El almacenamiento local sigue disponible, pero el Service Worker no se
+          activó: {errorServiceWorker}
         </div>
       )}
 
       {errorSincronizacion && (
         <div className="sales-status sales-status-error" role="alert">
-          La venta permanece guardada localmente, pero ocurrió un error al sincronizar:
-          {' '}{errorSincronizacion}
+          La venta permanece guardada localmente, pero ocurrió un error al
+          sincronizar: {errorSincronizacion}
+          {estadoSincronizacion === "requiere-intervencion" && (
+            <button
+              className="ml-3 rounded-md border border-red-300 px-3 py-1.5 font-semibold hover:bg-red-100"
+              disabled={estadoSincronizacion === "sincronizando"}
+              onClick={() => {
+                reintentarVentasBloqueadas().catch(() => {});
+              }}
+              type="button"
+            >
+              {estadoSincronizacion === "sincronizando"
+                ? "Reintentando..."
+                : "Reintentar tras revisar el stock"}
+            </button>
+          )}
         </div>
       )}
 
       {errorCatalogoApi && (
         <div className="sales-status sales-status-error" role="alert">
-          No se pudo actualizar el catálogo desde el servidor. Se conserva el catálogo local:
-          {' '}{errorCatalogoApi}
+          No se pudo actualizar el catálogo desde el servidor. Se conserva el
+          catálogo local: {errorCatalogoApi}
         </div>
       )}
 
       {mensaje && (
         <div className="sales-status" role="status">
           <span>{mensaje}</span>
-          <button aria-label="Cerrar aviso" onClick={() => setMensaje('')} type="button">×</button>
+          <button
+            aria-label="Cerrar aviso"
+            onClick={() => setMensaje("")}
+            type="button"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -128,8 +190,9 @@ function VentasPage() {
             <div className="sales-empty-catalog" role="status">
               <strong>El catálogo todavía no tiene productos</strong>
               <p>
-                Esta pantalla se completará con productos cargados desde Administración
-                por un usuario con permisos. El catálogo comienza vacío.
+                Esta pantalla se completará con productos cargados desde
+                Administración por un usuario con permisos. El catálogo comienza
+                vacío.
               </p>
             </div>
           ) : (
@@ -149,7 +212,10 @@ function VentasPage() {
                 />
               </div>
 
-              <nav aria-label="Categorías de productos" className="sales-categories">
+              <nav
+                aria-label="Categorías de productos"
+                className="sales-categories"
+              >
                 {categorias.map((categoria) => (
                   <button
                     aria-pressed={categoriaActiva === categoria.id}
@@ -173,7 +239,9 @@ function VentasPage() {
                     />
                   ))
                 ) : (
-                  <p className="sales-no-results">No encontramos productos con esa búsqueda.</p>
+                  <p className="sales-no-results">
+                    No encontramos productos con esa búsqueda.
+                  </p>
                 )}
               </div>
             </>
@@ -184,8 +252,8 @@ function VentasPage() {
           items={carrito}
           onAumentar={aumentarCantidad}
           onCobrar={() => {
-            setError('')
-            setMostrarCobro(true)
+            setError("");
+            setMostrarCobro(true);
           }}
           onDisminuir={disminuirCantidad}
           onQuitar={quitarProducto}
@@ -194,11 +262,21 @@ function VentasPage() {
         />
       </div>
 
+      {productoConfigurando && (
+        <ConfiguradorSaboresModal
+          onCancelar={() => setProductoConfigurando(null)}
+          onConfirmar={confirmarSabores}
+          producto={productoConfigurando}
+          carrito={carrito}
+          saboresDisponibles={productos}
+        />
+      )}
+
       {mostrarCobro && (
         <div
           className="sales-modal-backdrop"
           onClick={(event) => {
-            if (event.target === event.currentTarget) setMostrarCobro(false)
+            if (event.target === event.currentTarget) setMostrarCobro(false);
           }}
         >
           <section
@@ -206,14 +284,17 @@ function VentasPage() {
             aria-modal="true"
             className="sales-modal"
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setMostrarCobro(false)
+              if (event.key === "Escape") setMostrarCobro(false);
             }}
             role="dialog"
           >
             <h2 id="sales-modal-title">Registrar venta</h2>
-            <p>La venta se registrará localmente y quedará en cola para sincronización.</p>
+            <p>
+              La venta se registrará localmente y quedará en cola para
+              sincronización.
+            </p>
             <div aria-label="Medio de pago" className="sales-payment-methods">
-              {['Efectivo', 'Tarjeta', 'Transferencia'].map((metodo) => (
+              {metodosPago.map((metodo) => (
                 <button
                   aria-pressed={metodoPago === metodo}
                   className="sales-payment-method"
@@ -230,10 +311,14 @@ function VentasPage() {
               <strong>{formatearPrecio(subtotal)}</strong>
             </div>
             <p>
-              Estado de pago: {metodoPago}. La API y el procesamiento real del pago se
-              integrarán en la Fase 4.
+              Estado de pago: {metodoPago}. La API y el procesamiento real del
+              pago se integrarán en la Fase 4.
             </p>
-            {error && <p className="sales-form-error" role="alert">{error}</p>}
+            {error && (
+              <p className="sales-form-error" role="alert">
+                {error}
+              </p>
+            )}
             <div className="sales-modal-actions">
               <button
                 className="sales-modal-cancel"
@@ -248,14 +333,14 @@ function VentasPage() {
                 onClick={confirmarCobro}
                 type="button"
               >
-                {guardandoVenta ? 'Guardando...' : 'Confirmar venta'}
+                {guardandoVenta ? "Guardando..." : "Confirmar venta"}
               </button>
             </div>
           </section>
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default VentasPage
+export default VentasPage;

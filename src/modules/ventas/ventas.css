@@ -107,7 +107,10 @@
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
-  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
 }
 
 .sales-category-button:hover {
@@ -115,7 +118,7 @@
   color: #276653;
 }
 
-.sales-category-button[aria-pressed='true'] {
+.sales-category-button[aria-pressed="true"] {
   border-color: #226e59;
   background: #226e59;
   color: #fff;
@@ -141,7 +144,10 @@
   color: inherit;
   cursor: pointer;
   text-align: left;
-  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .sales-product-image {
@@ -164,6 +170,14 @@
   transform: translateY(-2px);
   border-color: #a8c8bd;
   box-shadow: 0 8px 20px rgb(27 46 68 / 7%);
+}
+
+.sales-product-card:disabled,
+.sales-product-card:disabled:hover {
+  transform: none;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .sales-product-card:focus-visible,
@@ -569,7 +583,7 @@
   font-weight: 600;
 }
 
-.sales-payment-method[aria-pressed='true'] {
+.sales-payment-method[aria-pressed="true"] {
   border-color: #347f66;
   background: #eff8f4;
   color: #205f49;

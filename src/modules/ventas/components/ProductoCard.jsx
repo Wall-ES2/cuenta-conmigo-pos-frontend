@@ -1,17 +1,30 @@
-import { formatearPrecio } from '../data/productos'
+import { formatearPrecio } from "../data/productos";
 
 const nombresCategorias = {
-  helados: 'Helados',
-  cafeteria: 'Cafetería',
-  panaderia: 'Panadería',
-  otros: 'Otros'
-}
+  helados: "Helados",
+  licuados: "Licuados",
+  infusiones: "Infusiones",
+  bebidas: "Bebidas",
+  cafeteria: "Cafetería",
+  panaderia: "Panadería",
+  otros: "Otros",
+};
 
 function ProductoCard({ producto, onAgregar }) {
+  const sinStock =
+    producto.esSabor &&
+    (!Number.isInteger(producto.stockDisponible) ||
+      producto.stockDisponible < 1);
+
   return (
     <button
-      aria-label={`Agregar ${producto.nombre} al carrito`}
+      aria-label={
+        sinStock
+          ? `${producto.nombre} no disponible: registra o repón su stock`
+          : `${producto.configuracionVenta ? "Configurar" : "Agregar"} ${producto.nombre}${producto.configuracionVenta ? " en el carrito" : " al carrito"}`
+      }
       className="sales-product-card"
+      disabled={sinStock}
       onClick={() => onAgregar(producto)}
       type="button"
     >
@@ -27,10 +40,19 @@ function ProductoCard({ producto, onAgregar }) {
       </span>
       <span className="sales-product-footer">
         <strong>{formatearPrecio(producto.precio)}</strong>
-        <span className="sales-add-label">Agregar <span aria-hidden="true">+</span></span>
+        <span className="sales-add-label">
+          {sinStock
+            ? Number.isInteger(producto.stockDisponible)
+              ? "Agotado"
+              : "Sin conteo"
+            : producto.configuracionVenta
+              ? "Elegir sabores"
+              : "Agregar"}{" "}
+          <span aria-hidden="true">+</span>
+        </span>
       </span>
     </button>
-  )
+  );
 }
 
-export default ProductoCard
+export default ProductoCard;
